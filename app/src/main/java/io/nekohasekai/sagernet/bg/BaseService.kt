@@ -40,6 +40,7 @@ import io.nekohasekai.sagernet.fmt.Alerts
 import io.nekohasekai.sagernet.fmt.TAG_SOCKS
 import io.nekohasekai.sagernet.ktx.*
 import io.nekohasekai.sagernet.plugin.PluginManager
+import io.nekohasekai.sagernet.utils.DefaultNetworkListener
 import io.nekohasekai.sagernet.utils.PackageCache
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
@@ -419,6 +420,12 @@ class BaseService {
 
                 // change the state
                 data.changeState(State.Stopped, msg)
+                runOnDefaultDispatcher {
+                    try {
+                        DefaultNetworkListener.stop("autoSwitch")
+                    } catch (_: Exception) {
+                    }
+                }
                 DataStore.startedProfile = 0L
                 if (!keepState) DataStore.currentProfile = 0L
                 // stop the service if nothing has bound to it
@@ -501,6 +508,17 @@ class BaseService {
                     DataStore.startedProfile = profile.id
                     startProcesses()
                     data.changeState(State.Connected)
+                    runOnDefaultDispatcher {
+                        try {
+                            DefaultNetworkListener.start("autoSwitch") { network ->
+                                runOnDefaultDispatcher {
+                                    NetworkSwitcher.onNetworkChanged(network)
+                                }
+                            }
+                        } catch (e: Exception) {
+                            Logs.w(e)
+                        }
+                    }
                     data.binder.checkLoop()
 
                     for ((type, routeName) in proxy.config.alerts) {

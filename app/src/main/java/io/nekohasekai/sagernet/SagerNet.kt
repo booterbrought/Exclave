@@ -45,7 +45,6 @@ import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
 import androidx.core.content.getSystemService
 import go.Seq
-import io.nekohasekai.sagernet.bg.NetworkSwitcher
 import io.nekohasekai.sagernet.bg.SagerConnection
 import io.nekohasekai.sagernet.bg.SubscriptionUpdater
 import io.nekohasekai.sagernet.bg.test.DebugInstance
@@ -121,18 +120,6 @@ class SagerNet : Application(),
         if (!isMainProcess) runOnDefaultDispatcher {
             runCatching {
                 SubscriptionUpdater.reconfigureUpdater()
-            }
-        }
-
-        if (isMainProcess) runOnDefaultDispatcher {
-            try {
-                DefaultNetworkListener.start("autoSwitch") { network ->
-                    runOnDefaultDispatcher {
-                        NetworkSwitcher.onNetworkChanged(network)
-                    }
-                }
-            } catch (e: Exception) {
-                Logs.w(e)
             }
         }
 
