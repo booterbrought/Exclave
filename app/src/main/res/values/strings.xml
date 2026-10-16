@@ -150,8 +150,8 @@
     <string name="route_opt_bypass_lan">Bypass private addresses</string>
     <string name="domain_strategy">Domain strategy</string>
     <string name="traffic_sniffing">Enable sniffing</string>
-    <string name="enable_mux">Enable Mux</string>
-    <string name="mux_concurrency">Mux concurrent Connections</string>
+    <string name="enable_mux">Enable Mux.Cool</string>
+    <string name="mux_concurrency">Maximum concurrent connections</string>
     <string name="proxied_apps">Per-app VPN</string>
     <string name="proxied_apps_summary">Exclude selected apps from VPN or include selected apps in VPN</string>
     <string name="off">Off</string>
@@ -372,6 +372,7 @@
     <string name="app_statistics_disabled">App traffic statistics disabled</string>
     <string name="ssh_auth_type_none">None</string>
     <string name="ssh_public_key">Public key</string>
+    <string name="ssh_host_key">Host key</string>
     <string name="ssh_private_key">Private key</string>
     <string name="ssh_private_key_passphrase">Private key passphrase</string>
     <string name="menu_tools">Tools</string>
@@ -467,7 +468,7 @@
     <string name="rules_geosite_url">geosite.dat URL</string>
     <string name="rules_geoip_url">geoip.dat URL</string>
     <string name="http_proxy_exception_list">HTTP proxy exception list</string>
-    <string name="mux_settings">Mux settings</string>
+    <string name="mux_settings">Mux.Cool settings</string>
     <string name="update_subscription">Update subscription</string>
     <string name="group_not_a_subscription">This group is not a subscription.</string>
     <string name="enable_fragment">Enable TLS Client Hello fragmentation</string>
@@ -485,8 +486,7 @@
     <string name="allow_apps_bypass_vpn_sum">Allow apps to bypass VPN using system-provided methods on their own</string>
     <string name="update_all_subscriptions">Update all subscriptions</string>
     <string name="cag_splithttp">XHTTP settings</string>
-    <string name="ech_config">ECH Config</string>
-    <string name="ech_doh_server">ECH DoH server</string>
+    <string name="ech_config_list" translatable="false">ECHConfigList</string>
     <string name="splithttp_mode">Mode</string>
     <string name="splithttp_extra" translatable="false">Extra</string>
     <string name="backup_all_profiles">Backup all profiles</string>
@@ -594,7 +594,7 @@
     <string name="insecure_warn">Security tips</string>
     <string name="insecure_warn_sum">Display warnings for profiles with equivalent security to cleartext.</string>
     <string name="ech">ECH</string>
-    <string name="server_name_to_verify">ServerNameToVerify</string>
+    <string name="server_name_to_verify" translatable="false">ServerNameToVerify</string>
     <string name="mieru_traffic_pattern">Traffic pattern</string>
     <string name="insecure_warning_detail">The security of this profile is equivalent to cleartext.\n\nThis warning is displayed because \"security tips\" is enabled.</string>
     <string name="hysteria_hop_interval_min">Minimum port hopping interval (s)</string>
@@ -602,6 +602,7 @@
     <string name="hysteria_bbr_profile">BBR profile</string>
     <string name="require_socks">Enable SOCKS5 inbound</string>
     <string name="custom_package_name_or_uid">Custom package name or UID</string>
+    <string name="tcp" translatable="false">TCP</string>
     <string name="udp" translatable="false">UDP</string>
     <string name="reality_mldsa65_verify" translatable="false">REALITY mldsa65Verify</string>
     <string name="socks5_udp_authentication_warning">SOCKS5 UDP is not protected by username/password authentication. If UDP is enabled, the authentication can be bypassed easily.</string>
@@ -619,4 +620,14 @@
     <string name="snell_obfs_mode">Obfuscation mode</string>
     <string name="snell_obfs_host">Obfuscation host</string>
     <string name="snell_mode">Mode</string>
+    <string name="anytls_disable_reuse">Disable connection reuse</string>
+    <string name="chrome_parrot" translatable="false">Chrome parrot</string>
+    <string name="chrome_parrot_summary">Imitate Chrome\'s QUIC Client Hello</string>
+    <string name="chrome_parrot_omit_max_datagram_frame_size_datagram_warning">This option is disabled to match Chrome\'s behavior.</string>
+    <string name="option_globally_enabled">This option has been enabled globally and the value will be omitted.</string>
+    <string name="ech_query_name" translatable="false">ECHQueryName</string>
+    <string name="snell_obfs_uri">Obfuscation URI</string>
+    <string name="naiveproxy_tunnel_timeout">Tunnel timeout (s)</string>
+    <string name="naiveproxy_idle_timeout">Idle timeout (s)</string>
+    <string name="uri_template">URI Template</string>
 </resources>

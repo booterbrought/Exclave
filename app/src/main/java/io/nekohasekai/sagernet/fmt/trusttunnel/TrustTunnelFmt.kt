@@ -23,11 +23,20 @@ import io.nekohasekai.sagernet.ktx.applyDefaultValues
 import io.nekohasekai.sagernet.ktx.joinHostPort
 import io.nekohasekai.sagernet.ktx.listByLineOrComma
 import libexclavecore.Libexclavecore
+import org.bouncycastle.cert.X509CertificateHolder
+import org.bouncycastle.openssl.PEMParser
+import org.bouncycastle.util.io.pem.PemObject
+import org.bouncycastle.util.io.pem.PemWriter
+import java.io.ByteArrayOutputStream
+import java.io.StringReader
+import java.io.StringWriter
+import java.security.cert.CertificateFactory
 import kotlin.io.encoding.Base64
 
 // https://github.com/TrustTunnel/TrustTunnel/blob/8856e7ba83ae0c9faace78aaf9a95b1b291cd3ed/DEEP_LINK.md
 // https://github.com/TrustTunnel/TrustTunnel/blob/8ba8f34da84b54ff49c248ec8c940c38010b511e/DEEP_LINK.md
 // https://github.com/TrustTunnel/TrustTunnel/blob/9e144fe4bcd0c2cf8f6690a97ba9b4df571a8ec0/DEEP_LINK.md
+// https://github.com/TrustTunnel/TrustTunnel/blob/3470404b7fca8187772b57c6641a0c571e0c165f/DEEP_LINK.md
 
 private enum class Tag(val code: Long) {
     Version(0x00),
@@ -44,11 +53,13 @@ private enum class Tag(val code: Long) {
     ClientRandomPrefix(0x0B),
     Name(0x0C),
     DNSUptreams(0x0D),
+    SubscriptionURL(0x0E),
 }
 
 private enum class Version(val code: Byte) {
     Version0(0x00),
     Version1(0x01),
+    Version2(0x02),
 }
 
 private enum class HasIPv6(val code: Byte) {
@@ -78,26 +89,26 @@ private data class TLV(
 )
 
 fun TrustTunnelBean.toUri(): String {
-    require(serverAddress.isNotEmpty(), { "empty server address" })
-    require(username.isNotEmpty(), { "empty username" })
-    require(password.isNotEmpty(), { "empty password" })
-    require(serverPort in 0..65535, { "invalid port" })
-    require(protocol == "https" || protocol == "quic", { "invalid protocol" })
-    val byteArrayBuilder = ArrayList<Byte>().apply {
+    require(username.isNotEmpty()) { "empty username" }
+    require(password.isNotEmpty()) { "empty password" }
+    require(protocol == "https" || protocol == "quic") { "invalid protocol" }
+    val byteArrayStream = ByteArrayOutputStream().apply {
         writeTLV(Tag.Addresses.code, joinHostPort(serverAddress, serverPort).toByteArray())
         val serverNames = serverNameToVerify.listByLineOrComma()
-        require(serverNames.size <= 1, { "only one serverNameToVerify value is supported" })
-        if (serverNames.size == 1 && serverNames[0].isNotEmpty()) {
+        require(serverNames.size <= 1) { "only one serverNameToVerify value is supported" }
+        if (serverNames.size == 1) {
+            require(serverNames[0].isNotEmpty()) { "serverNameToVerify contains empty value" }
             // serverNameToVerify will always verify even if allowInsecure is true
             writeTLV(Tag.Hostname.code, serverNames[0].toByteArray())
-            require(!Libexclavecore.isIP(sni.ifEmpty { serverAddress }), { "IP address can't be CustomSNI" })
+            require(!Libexclavecore.isIP(sni.ifEmpty { serverAddress })) { "IP address can't be CustomSNI" }
             writeTLV(Tag.CustomSNI.code, sni.ifEmpty { serverAddress }.toByteArray())
         } else {
             writeTLV(Tag.Hostname.code, sni.ifEmpty { serverAddress }.toByteArray())
         }
         writeTLV(Tag.Username.code, username.toByteArray())
         writeTLV(Tag.Password.code, password.toByteArray())
-        if (allowInsecure) {
+        if (pinnedPeerCertificateChainSha256.isEmpty() && pinnedPeerCertificatePublicKeySha256.isEmpty() &&
+            pinnedPeerCertificateSha256.isEmpty() && serverNames.isEmpty() && allowInsecure) {
             writeTLV(Tag.SkipVerification.code, byteArrayOf(SkipVerification.True.code))
         }
         when (protocol) {
@@ -105,16 +116,30 @@ fun TrustTunnelBean.toUri(): String {
             "quic" -> writeTLV(Tag.UpstreamProtocol.code, byteArrayOf(UpstreamProtocol.HTTP3.code))
         }
         if (certificate.isNotEmpty()) {
-            val der = Libexclavecore.pemToDer(certificate)
-            require(der.isNotEmpty())
-            writeTLV(Tag.Certificate.code, der)
+            val derArray = ByteArrayOutputStream()
+            val pemParser = PEMParser(StringReader(certificate))
+            while (true) {
+                try {
+                    val obj = pemParser.readPemObject() ?: break
+                    if (obj.type != "CERTIFICATE" || obj.headers.isNotEmpty()) {
+                        continue
+                    }
+                    X509CertificateHolder(obj.content)
+                    derArray.write(obj.content)
+                } catch (_: Exception) {
+                    continue
+                }
+            }
+            if (derArray.size() > 0) {
+                writeTLV(Tag.Certificate.code, derArray.toByteArray())
+            }
         }
         if (name.isNotEmpty()) {
             writeTLV(Tag.Name.code, name.toByteArray())
         }
-        writeTLV(Tag.Version.code, byteArrayOf(Version.Version1.code))
+        writeTLV(Tag.Version.code, byteArrayOf(Version.Version2.code))
     }
-    return "tt://?" + Base64.UrlSafe.withPadding(Base64.PaddingOption.ABSENT).encode(byteArrayBuilder.toByteArray())
+    return "tt://?" + Base64.UrlSafe.withPadding(Base64.PaddingOption.ABSENT).encode(byteArrayStream.toByteArray())
 }
 
 fun parseTrustTunnel(url: String): List<TrustTunnelBean> {
@@ -130,6 +155,10 @@ fun parseTrustTunnel(url: String): List<TrustTunnelBean> {
         var hasPassword = false
         var hostname = ""
         var customSNI = ""
+        var version: Byte = 0
+        var hasDNSUpstream = false
+        var hasName = false
+        var hasSubscriptionURL = false
         var offset = 0
         while (offset < data.size) {
             val tlv = data.readTLV(offset)
@@ -149,11 +178,13 @@ fun parseTrustTunnel(url: String): List<TrustTunnelBean> {
             } + length
             when (tlv.tag) {
                 Tag.Version.code -> {
-                    require(length == 1, { "invalid Version" })
-                    require(value[0] == Version.Version0.code || value[0] == Version.Version1.code)
+                    require(length == 1) { "invalid Version" }
+                    version = value[0]
+                    require(version == Version.Version0.code || version == Version.Version1.code
+                            || version == Version.Version2.code)
                 }
                 Tag.Hostname.code -> {
-                    require(value.isNotEmpty(), { "empty Hostname" })
+                    require(value.isNotEmpty()) { "empty Hostname" }
                     hostname = String(value)
                     hasHostName = true
                 }
@@ -162,58 +193,80 @@ fun parseTrustTunnel(url: String): List<TrustTunnelBean> {
                     hasAddresses = true
                 }
                 Tag.CustomSNI.code -> {
-                    require(length > 0, { "empty CustomSNI" })
+                    require(length > 0) { "empty CustomSNI" }
                     customSNI = String(value)
                 }
                 Tag.HasIPv6.code -> {
-                    require(length == 1, { "invalid HasIPv6" })
-                    require(value[0] == HasIPv6.False.code || value[0] == HasIPv6.True.code, { "invalid HasIPv6" })
+                    require(length == 1) { "invalid HasIPv6" }
+                    require(value[0] == HasIPv6.False.code || value[0] == HasIPv6.True.code) { "invalid HasIPv6" }
                 }
                 Tag.Username.code -> {
-                    require(value.isNotEmpty(), { "empty Username" })
+                    require(value.isNotEmpty()) { "empty Username" }
                     bean.username = String(value)
                     hasUsername = true
                 }
                 Tag.Password.code -> {
-                    require(value.isNotEmpty(), { "empty Password" })
+                    require(value.isNotEmpty()) { "empty Password" }
                     bean.password = String(value)
                     hasPassword = true
                 }
                 Tag.SkipVerification.code -> {
-                    require(length == 1, { "invalid SkipVerification" })
-                    require(value[0] == SkipVerification.False.code || value[0] == SkipVerification.True.code, { "invalid SkipVerification" })
+                    require(length == 1) { "invalid SkipVerification" }
+                    require(value[0] == SkipVerification.False.code || value[0] == SkipVerification.True.code) { "invalid SkipVerification" }
+                    bean.allowInsecure = value[0] == SkipVerification.True.code
                 }
                 Tag.Certificate.code -> {
-                    val pem = Libexclavecore.derToPem(value)
-                    require(pem.isNotEmpty(), { "invalid Certificate" })
-                    bean.certificate = pem
+                    val certs = CertificateFactory.getInstance("X.509").generateCertificates(value.inputStream())
+                    val stringWriter = StringWriter()
+                    val pemWriter = PemWriter(stringWriter)
+                    for (cert in certs) {
+                        pemWriter.writeObject(PemObject("CERTIFICATE", cert.encoded))
+                    }
+                    pemWriter.close()
+                    bean.certificate = stringWriter.toString()
+                    require(!bean.certificate.isNullOrEmpty()) { "invalid Certificate" }
                 }
                 Tag.UpstreamProtocol.code -> {
-                    require(length == 1, { "invalid UpstreamProtocol" })
-                    require(value[0] == UpstreamProtocol.HTTP2.code || value[0] == UpstreamProtocol.HTTP3.code, { "invalid UpstreamProtocol" })
+                    require(length == 1) { "invalid UpstreamProtocol" }
+                    require(value[0] == UpstreamProtocol.HTTP2.code || value[0] == UpstreamProtocol.HTTP3.code) { "invalid UpstreamProtocol" }
                 }
                 Tag.AntiDPI.code -> {
-                    require(length == 1, { "invalid AntiDPI" })
-                    require(value[0] == AntiDPI.False.code || value[0] == AntiDPI.True.code, { "invalid AntiDPI" })
+                    require(length == 1) { "invalid AntiDPI" }
+                    require(value[0] == AntiDPI.False.code || value[0] == AntiDPI.True.code) { "invalid AntiDPI" }
                 }
                 Tag.ClientRandomPrefix.code -> {
                     // ignored
                 }
                 Tag.Name.code -> {
                     bean.name = String(value)
+                    hasName = true
                 }
                 Tag.DNSUptreams.code -> {
+                    hasDNSUpstream = true
                     // ignored
+                }
+                Tag.SubscriptionURL.code -> {
+                    hasSubscriptionURL = true
+                    // ignored, 脱裤子放屁
                 }
                 else -> {
                     // "A parser MUST ignore unknown tags to allow forward-compatible extensions."
                 }
             }
         }
-        require(hasHostName, { "missing hostname" })
-        require(hasAddresses, { "missing addresses" })
-        require(hasUsername, { "missing username" })
-        require(hasPassword, { "missing password" })
+        if (version < 1 && hasDNSUpstream) {
+            error("version 0 can not have DNS upstream")
+        }
+        if (version < 1 && hasName) {
+            error("version 0 can not have name")
+        }
+        if (version < 2 && hasSubscriptionURL) {
+            error("version 0 or 1 can not have subscription url")
+        }
+        require(hasHostName) { "missing hostname" }
+        require(hasAddresses) { "missing addresses" }
+        require(hasUsername) { "missing username" }
+        require(hasPassword) { "missing password" }
         if (customSNI.isNotEmpty()) {
             bean.sni = customSNI
                 // Do not verify if SkipVerification is true.
@@ -232,17 +285,10 @@ fun parseTrustTunnel(url: String): List<TrustTunnelBean> {
                 })
                 return@forEach
             }
-            require(it.contains(":"), { "missing colon in address" })
-            val port = it.substringAfterLast(":").toIntOrNull()
-            require(port != null && port in 0..65535, { "invalid port" })
-            var host = it.substringBeforeLast(":")
-            if (host.startsWith("[") && host.endsWith("]")) {
-                host = host.substringAfter("[").substringBeforeLast("]")
-                require(Libexclavecore.isIPv6(host), { "non IPv6 address in brackets" })
-            }
+            val hostPort = Libexclavecore.splitHostPort(it)
             beans.add(bean.applyDefaultValues().clone().apply {
-                serverAddress = host
-                serverPort = port
+                serverAddress = hostPort.host
+                serverPort = hostPort.port
             })
         }
         return beans
@@ -251,40 +297,40 @@ fun parseTrustTunnel(url: String): List<TrustTunnelBean> {
     }
 }
 
-private fun ArrayList<Byte>.writeTLV(tag: Long, value: ByteArray) {
+private fun ByteArrayOutputStream.writeTLV(tag: Long, value: ByteArray) {
     writeUVarInt(tag)
     writeUVarInt(value.size.toLong())
-    addAll(value.toList())
+    write(value)
 }
 
-private fun ArrayList<Byte>.writeUVarInt(i: Long) {
+private fun ByteArrayOutputStream.writeUVarInt(i: Long) {
     require(i < 4611686018427387904)
     when {
         i < 64 -> {
-            add((i and 0x3F).toByte())
+            write(byteArrayOf((i and 0x3F).toByte()))
         }
         i < 16384 -> {
             val encoded = i or (0x1L shl 14)
-            add(((encoded shr 8) and 0xFF).toByte())
-            add((encoded and 0xFF).toByte())
+            write(byteArrayOf(((encoded shr 8) and 0xFF).toByte()))
+            write(byteArrayOf(((encoded and 0xFF).toByte())))
         }
         i < 1073741824 -> {
             val encoded = i or (0x2L shl 30)
-            add(((encoded shr 24) and 0xFF).toByte())
-            add(((encoded shr 16) and 0xFF).toByte())
-            add(((encoded shr 8) and 0xFF).toByte())
-            add((encoded and 0xFF).toByte())
+            write(byteArrayOf(((encoded shr 24) and 0xFF).toByte()))
+            write(byteArrayOf(((encoded shr 16) and 0xFF).toByte()))
+            write(byteArrayOf(((encoded shr 8) and 0xFF).toByte()))
+            write(byteArrayOf((encoded and 0xFF).toByte()))
         }
         else -> {
             val encoded = i or (0x3L shl 62)
-            add(((encoded shr 56) and 0xFF).toByte())
-            add(((encoded shr 48) and 0xFF).toByte())
-            add(((encoded shr 40) and 0xFF).toByte())
-            add(((encoded shr 32) and 0xFF).toByte())
-            add(((encoded shr 24) and 0xFF).toByte())
-            add(((encoded shr 16) and 0xFF).toByte())
-            add(((encoded shr 8) and 0xFF).toByte())
-            add((encoded and 0xFF).toByte())
+            write(byteArrayOf(((encoded shr 56) and 0xFF).toByte()))
+            write(byteArrayOf(((encoded shr 48) and 0xFF).toByte()))
+            write(byteArrayOf(((encoded shr 40) and 0xFF).toByte()))
+            write(byteArrayOf(((encoded shr 32) and 0xFF).toByte()))
+            write(byteArrayOf(((encoded shr 24) and 0xFF).toByte()))
+            write(byteArrayOf(((encoded shr 16) and 0xFF).toByte()))
+            write(byteArrayOf(((encoded shr 8) and 0xFF).toByte()))
+            write(byteArrayOf((encoded and 0xFF).toByte()))
         }
     }
 }

@@ -48,7 +48,8 @@ public class Hysteria2Bean extends AbstractBean {
     public Long hopIntervalMin;
     public Long hopIntervalMax;
     public Boolean echEnabled;
-    public String echConfig;
+    public String echConfigList;
+    public String echQueryName;
     public String mtlsCertificate;
     public String mtlsCertificatePrivateKey;
     public String congestionControl;
@@ -58,6 +59,7 @@ public class Hysteria2Bean extends AbstractBean {
     public Integer geckoMinPacketSize;
     public Integer geckoMaxPacketSize;
     public String serverNameToVerify;
+    public Boolean chromeParrot;
 
     @Override
     public void initializeDefaultValues() {
@@ -77,7 +79,8 @@ public class Hysteria2Bean extends AbstractBean {
         if (hopIntervalMin == null) hopIntervalMin = 0L;
         if (hopIntervalMax == null) hopIntervalMax = 0L;
         if (echEnabled == null) echEnabled = false;
-        if (echConfig == null) echConfig = "";
+        if (echConfigList == null) echConfigList = "";
+        if (echQueryName == null) echQueryName = "";
         if (mtlsCertificate == null) mtlsCertificate = "";
         if (mtlsCertificatePrivateKey == null) mtlsCertificatePrivateKey = "";
         if (congestionControl == null) congestionControl = "bbr";
@@ -87,11 +90,12 @@ public class Hysteria2Bean extends AbstractBean {
         if (geckoMinPacketSize == null) geckoMinPacketSize = 0;
         if (geckoMaxPacketSize == null) geckoMaxPacketSize = 0;
         if (serverNameToVerify == null) serverNameToVerify = "";
+        if (chromeParrot == null) chromeParrot = false;
     }
 
     @Override
     public void serialize(ByteBufferOutput output) {
-        output.writeInt(10);
+        output.writeInt(12);
         super.serialize(output);
         output.writeString(auth);
         switch (obfsType) {
@@ -112,7 +116,7 @@ public class Hysteria2Bean extends AbstractBean {
         output.writeLong(downloadMbps);
         output.writeString(serverPorts);
         output.writeLong(hopInterval);
-        output.writeString(echConfig);
+        output.writeString(echConfigList);
         output.writeString(mtlsCertificate);
         output.writeString(mtlsCertificatePrivateKey);
 
@@ -121,7 +125,11 @@ public class Hysteria2Bean extends AbstractBean {
         output.writeLong(hopIntervalMax);
         output.writeString(congestionControl);
         output.writeString(bbrProfile);
-        output.writeBoolean(omitMaxDatagramFrameSize);
+        if (chromeParrot) {
+            output.writeBoolean(false); // omitMaxDatagramFrameSize
+        } else {
+            output.writeBoolean(omitMaxDatagramFrameSize);
+        }
         output.writeString(obfsType);
         switch (obfsType) {
             case "gecko":
@@ -134,6 +142,8 @@ public class Hysteria2Bean extends AbstractBean {
                 break;
         }
         output.writeString(serverNameToVerify);
+        output.writeBoolean(chromeParrot);
+        output.writeString(echQueryName);
     }
 
     @Override
@@ -182,8 +192,8 @@ public class Hysteria2Bean extends AbstractBean {
             }
         }
         if (version >= 4) {
-            echConfig = input.readString();
-            if (version <= 5 && !echConfig.isEmpty()) {
+            echConfigList = input.readString();
+            if (version <= 5 && !echConfigList.isEmpty()) {
                 echEnabled = true;
             }
             mtlsCertificate = input.readString();
@@ -226,6 +236,15 @@ public class Hysteria2Bean extends AbstractBean {
         if (version >= 10) {
             serverNameToVerify = input.readString();
         }
+        if (version >= 11) {
+            chromeParrot = input.readBoolean();
+            if (chromeParrot) {
+                omitMaxDatagramFrameSize = false;
+            }
+        }
+        if (version >= 12) {
+            echQueryName = input.readString();
+        }
     }
 
     @Override
@@ -250,8 +269,15 @@ public class Hysteria2Bean extends AbstractBean {
         if (bean.certificates == null || bean.certificates.isEmpty() && !certificates.isEmpty()) {
             bean.certificates = certificates;
         }
-        bean.echEnabled = echEnabled;
-        bean.echConfig = echConfig;
+        if ((bean.echEnabled == null || !bean.echEnabled) && echEnabled) {
+            bean.echEnabled = echEnabled;
+        }
+        if ((bean.echConfigList == null || bean.echConfigList.isEmpty()) && !echConfigList.isEmpty()) {
+            bean.echConfigList = echConfigList;
+        }
+        if ((bean.echQueryName == null || bean.echQueryName.isEmpty()) && !echQueryName.isEmpty()) {
+            bean.echQueryName = echQueryName;
+        }
         bean.hopInterval = hopInterval;
         bean.hopIntervalMin = hopIntervalMin;
         bean.hopIntervalMax = hopIntervalMax;
@@ -264,6 +290,7 @@ public class Hysteria2Bean extends AbstractBean {
         if (bean.geckoMaxPacketSize == null || bean.geckoMaxPacketSize == 0) {
             bean.geckoMaxPacketSize = geckoMaxPacketSize;
         }
+        bean.chromeParrot = chromeParrot;
     }
 
     @Override
@@ -318,7 +345,7 @@ public class Hysteria2Bean extends AbstractBean {
         if (!pinnedPeerCertificateSha256.isEmpty()) {
             return false;
         }
-        if (!serverNameToVerify.isEmpty()) {
+        if (!NetsKt.listByLineOrComma(serverNameToVerify).isEmpty()) {
             return false;
         }
         return true;

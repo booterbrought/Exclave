@@ -319,7 +319,6 @@ class MainActivity : ThemedActivity(),
     }
 
     override fun missingPlugin(profileName: String, pluginName: String) {
-        if (pluginName.startsWith("shadowsocks-")) pluginName.substringAfter("shadowsocks-") else pluginName
         val pluginEntity = PluginEntry.find(pluginName)
         if (pluginEntity == null) {
             snackbar(getString(R.string.plugin_unknown, pluginName)).show()
@@ -424,6 +423,9 @@ class MainActivity : ThemedActivity(),
 
     override fun stateChanged(state: BaseService.State, profileName: String?, msg: String?) {
         changeState(state, msg, true)
+
+        (supportFragmentManager.findFragmentById(R.id.fragment_holder) as? ConfigurationFragment)
+            ?.refreshAllSelections()
     }
 
     override fun statsUpdated(stats: List<AppStats>) {

@@ -336,7 +336,8 @@ object DataStore : OnPreferenceDataStoreChangeListener {
     var serverPacketEncoding by profileCacheStore.string(Key.SERVER_PACKET_ENCODING)
     var serverUTLSFingerprint by profileCacheStore.string(Key.SERVER_UTLS_FINGERPRINT)
     var serverEchEnabled by profileCacheStore.boolean(Key.SERVER_ECH_ENABLED)
-    var serverEchConfig by profileCacheStore.string(Key.SERVER_ECH_CONFIG)
+    var serverEchConfigList by profileCacheStore.string(Key.SERVER_ECH_CONFIG_LIST)
+    var serverEchQueryName by profileCacheStore.string(Key.SERVER_ECH_QUERY_NAME)
     var serverRealityPublicKey by profileCacheStore.string(Key.SERVER_REALITY_PUBLIC_KEY)
     var serverRealityShortId by profileCacheStore.string(Key.SERVER_REALITY_SHORT_ID)
     var serverRealityMldsa65Verify by profileCacheStore.string(Key.SERVER_REALITY_MLDSA65_VERIFY)
@@ -356,6 +357,7 @@ object DataStore : OnPreferenceDataStoreChangeListener {
     var serverHysteria2ObfsType by profileCacheStore.string(Key.SERVER_HYSTERIA2_OBFS_TYPE)
     var serverHysteria2GeckoMinPacketSize by profileCacheStore.stringToInt(Key.SERVER_HYSTERIA2_GECKO_MIN_PACKET_SIZE)
     var serverHysteria2GeckoMaxPacketSize by profileCacheStore.stringToInt(Key.SERVER_HYSTERIA2_GECKO_MAX_PACKET_SIZE)
+    var serverHysteria2ChromeParrot by profileCacheStore.boolean(Key.SERVER_HYSTERIA2_CHROME_PARROT)
 
     var serverSnellVersion by profileCacheStore.stringToInt(Key.SERVER_SNELL_VERSION)
     var serverSnellReuse by profileCacheStore.boolean(Key.SERVER_SNELL_REUSE)
@@ -363,6 +365,7 @@ object DataStore : OnPreferenceDataStoreChangeListener {
     var serverSnellUserKey by profileCacheStore.string(Key.SERVER_SNELL_USER_KEY)
     var serverSnellObfsMode by profileCacheStore.string(Key.SERVER_SNELL_OBFS_MODE)
     var serverSnellObfsHost by profileCacheStore.string(Key.SERVER_SNELL_OBFS_HOST)
+    var serverSnellObfsUri by profileCacheStore.string(Key.SERVER_SNELL_OBFS_URI)
     var serverSnellMode by profileCacheStore.string(Key.SERVER_SNELL_MODE)
 
     var serverVMessExperimentalAuthenticatedLength by profileCacheStore.boolean(Key.SERVER_VMESS_EXPERIMENTAL_AUTHENTICATED_LENGTH)
@@ -396,19 +399,23 @@ object DataStore : OnPreferenceDataStoreChangeListener {
     var serverAnyTLSIdleSessionCheckInterval by profileCacheStore.stringToInt(Key.SERVER_ANYTLS_IDLE_SESSION_CHECK_INTERVAL) { 30 }
     var serverAnyTLSIdleSessionTimeout by profileCacheStore.stringToInt(Key.SERVER_ANYTLS_IDLE_SESSION_TIMEOUT) { 30 }
     var serverAnyTLSMinIdleSession by profileCacheStore.stringToInt(Key.SERVER_ANYTLS_MIN_IDLE_SESSION)
+    var serverAnyTLSDisableReuse by profileCacheStore.boolean(Key.SERVER_ANYTLS_DISABLE_REUSE)
     var serverServerNameToVerify by profileCacheStore.string(Key.SERVER_SERVER_NAME_TO_VERIFY)
     var serverHysteria2OmitMaxDatagramFrameSize by profileCacheStore.boolean(Key.SERVER_HYSTERIA2_OMIT_MAX_DATAGRAM_FRAME_SIZE)
-    var serverSSHKeepaliveInterval by profileCacheStore.stringToInt(Key.SERVER_SSH_KEEPALIVE_INTERVAL)
+    var serverSSHKeepaliveInterval by profileCacheStore.stringToIntIfExists(Key.SERVER_SSH_KEEPALIVE_INTERVAL)
+
+    var serverHTTPConnectUDP by profileCacheStore.boolean(Key.SERVER_HTTP_CONNECT_UDP)
+    var serverHTTPConnectUDPURITemplate by profileCacheStore.string(Key.SERVER_HTTP_CONNECT_UDP_URI_TEMPLATE)
 
     var serverNaiveNoPostQuantum by profileCacheStore.boolean(Key.SERVER_NAIVE_NO_POST_QUANTUM)
-    var serverShadowQUICDisableALPN by profileCacheStore.boolean(Key.SERVER_SHADOWQUIC_DISABLE_ALPN)
-    var serverShadowQUICUseSunnyQUIC by profileCacheStore.boolean(Key.SERVER_SHADOWQUIC_USE_SUNNYQUIC)
+    var serverNaiveTunnelTimeout by profileCacheStore.stringToIntIfExists(Key.SERVER_NAIVE_TUNNEL_TIMEOUT)
+    var serverNaiveIdleTimeout by profileCacheStore.stringToIntIfExists(Key.SERVER_NAIVE_IDLE_TIMEOUT)
     var serverSingUot by profileCacheStore.boolean(Key.SERVER_SING_UOT)
     var serverSingMux by profileCacheStore.boolean(Key.SERVER_SING_MUX)
     var serverSingMuxProtocol by profileCacheStore.string(Key.SERVER_SING_MUX_PROTOCOL)
-    var serverSingMuxMaxConnections by profileCacheStore.stringToInt(Key.SERVER_SING_MUX_MAX_CONNECTIONS)
-    var serverSingMuxMinStreams by profileCacheStore.stringToInt(Key.SERVER_SING_MUX_MIN_STREAMS)
-    var serverSingMuxMaxStreams by profileCacheStore.stringToInt(Key.SERVER_SING_MUX_MAX_STREAMS)
+    var serverSingMuxMaxConnections by profileCacheStore.stringToIntIfExists(Key.SERVER_SING_MUX_MAX_CONNECTIONS)
+    var serverSingMuxMinStreams by profileCacheStore.stringToIntIfExists(Key.SERVER_SING_MUX_MIN_STREAMS)
+    var serverSingMuxMaxStreams by profileCacheStore.stringToIntIfExists(Key.SERVER_SING_MUX_MAX_STREAMS)
     var serverSingMuxPadding by profileCacheStore.boolean(Key.SERVER_SING_MUX_PADDING)
 
     var experimentalFlags by configurationStore.string(Key.EXPERIMENTAL_FLAGS)
@@ -478,13 +485,22 @@ object DataStore : OnPreferenceDataStoreChangeListener {
     var rulesFirstCreate by configurationStore.boolean(Key.RULES_FIRST_CREATE)
     var doNotShowRuleExportWarning by configurationStore.boolean(Key.DO_NOT_SHOW_RULE_EXPORT_WARNING)
 
-    var getInstalledPackagesInited by configurationStore.boolean("getInstalledPackagesInited")
-    var postNotificationsPermissionRequested by configurationStore.boolean("postNotificationsPermissionRequested")
-    var accessLocalNetworkPermissionRequested by configurationStore.boolean("accessLocalNetworkPermissionRequested")
+    var getInstalledPackagesInited by configurationStore.boolean(Key.GET_INSTALLED_PACKAGES_INITED)
+    var postNotificationsPermissionRequested by configurationStore.boolean(Key.POST_NOTIFICATION_PERMISSION_REQUESTED)
+    var accessLocalNetworkPermissionRequested by configurationStore.boolean(Key.ACCESS_LOCAL_NETWORK_PERMISSION_REQUESTED)
 
     var experimentalFlagsProperties = Properties().apply {
         load(BufferedReader(StringReader(experimentalFlags)))
     }
+
+    var stunServerAddress by configurationStore.string(Key.STUN_SERVER_ADDRESS)
+    var stunTestType by configurationStore.stringToInt(Key.STUN_TEST_TYPE)
+    var certProberServerAddress by configurationStore.string(Key.CERT_PROBER_SERVER_ADDRESS) { "example.com" }
+    var certProberServerPort by configurationStore.stringToInt(Key.CERT_PROBER_SERVER_PORT) { 443 }
+    var certProberSNI by configurationStore.string(Key.CERT_PROBER_SNI) { "example.com" }
+    var certProberALPN by configurationStore.string(Key.CERT_PROBER_ALPN) { "h2,http/1.1" }
+    var certProberProtocol by configurationStore.stringToInt(Key.CERT_PROBER_PROTOCOL)
+    var certProberHashType by configurationStore.stringToInt(Key.CERT_PROBER_CERT_HASH_TYPE)
 
     override fun onPreferenceDataStoreChanged(store: PreferenceDataStore, key: String) {
         when (key) {

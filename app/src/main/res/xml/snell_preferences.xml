@@ -25,6 +25,7 @@
             app:entryValues="@array/snell_version_value"
             app:icon="@drawable/ic_baseline_compare_arrows_24"
             app:key="serverSnellVersion"
+            app:singleLineTitle="false"
             app:title="@string/app_version"
             app:useSimpleSummaryProvider="true" />
         <EditTextPreference
@@ -44,6 +45,7 @@
             app:entryValues="@array/snell_obfs_value"
             app:icon="@drawable/ic_baseline_texture_24"
             app:key="serverSnellObfsMode"
+            app:singleLineTitle="false"
             app:title="@string/snell_obfs_mode"
             app:useSimpleSummaryProvider="true" />
         <EditTextPreference
@@ -51,12 +53,18 @@
             app:key="serverSnellObfsHost"
             app:title="@string/snell_obfs_host"
             app:useSimpleSummaryProvider="true" />
+        <EditTextPreference
+            app:icon="@drawable/ic_baseline_format_align_left_24"
+            app:key="serverSnellObfsUri"
+            app:title="@string/snell_obfs_uri"
+            app:useSimpleSummaryProvider="true" />
         <io.nekohasekai.sagernet.widget.SimpleMenuPreference
             app:defaultValue="default"
             app:entries="@array/snell_mode_value"
             app:entryValues="@array/snell_mode_value"
             app:icon="@drawable/ic_baseline_compare_arrows_24"
             app:key="serverSnellMode"
+            app:singleLineTitle="false"
             app:title="@string/snell_mode"
             app:useSimpleSummaryProvider="true" />
 
