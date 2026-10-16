@@ -35,10 +35,32 @@ import libexclavecore.Libexclavecore
 import kotlin.coroutines.Continuation
 import kotlin.coroutines.suspendCoroutine
 
-class V2RayTestInstance(profile: ProxyEntity, val link: String, val timeout: Int, val protectPath: String = "") : V2RayInstance(
+class V2RayTestInstance(
+    profile: ProxyEntity,
+    val link: String,
+    val timeout: Int,
+    val protectPath: String = "",
+    val speedTestSocksPort: Int = 0,
+) : V2RayInstance(
     profile,
 ), LocalResolver {
     lateinit var continuation: Continuation<Int>
+
+    /**
+     * Start the core instance and keep it running, for follow-up measurements
+     * (e.g. speed tests) through the dedicated speedtest-in socks inbound.
+     */
+    suspend fun startInstance() {
+        processes = GuardedProcessPool {
+            Logs.w(it)
+        }
+        init()
+        launch()
+        if (pluginConfigs.isNotEmpty()) {
+            delay(500L)
+        }
+    }
+
     suspend fun doTest(): Int {
         return suspendCoroutine { c ->
             continuation = c
@@ -61,6 +83,15 @@ class V2RayTestInstance(profile: ProxyEntity, val link: String, val timeout: Int
         }
     }
 
+    /**
+     * Connection check first (through the core itself), then keep the instance running
+     * for the caller to measure download speed through [speedTestSocksPort].
+     */
+    suspend fun startAndTestConnection(): Int {
+        startInstance()
+        return Libexclavecore.urlTest(v2rayPoint, "", link, timeout)
+    }
+
     @Volatile
     override var underlyingNetwork: Network? = null
 
@@ -81,6 +112,6 @@ class V2RayTestInstance(profile: ProxyEntity, val link: String, val timeout: Int
     }
 
     override fun buildConfig() {
-        config = buildV2RayConfig(profile, forTest = true)
+        config = buildV2RayConfig(profile, forTest = true, speedTestSocksPort = speedTestSocksPort)
     }
 }

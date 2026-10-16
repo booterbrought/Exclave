@@ -85,6 +85,8 @@ data class ProxyEntity(
     var rx: Long = 0L,
     var status: Int = 0,
     var ping: Int = 0,
+    @ColumnInfo(defaultValue = "0") var speed: Int = 0,
+    @ColumnInfo(defaultValue = "0") var speedTestStatus: Int = 0,
     var uuid: String = "",
     var error: String? = null,
     var socksBean: SOCKSBean? = null,
@@ -164,7 +166,7 @@ data class ProxyEntity(
     }
 
     override fun serializeToBuffer(output: ByteBufferOutput) {
-        output.writeInt(0)
+        output.writeInt(1)
 
         output.writeLong(id)
         output.writeLong(groupId)
@@ -182,6 +184,8 @@ data class ProxyEntity(
         output.writeBytes(data)
 
         output.writeBoolean(dirty)
+        output.writeInt(speed)
+        output.writeInt(speedTestStatus)
     }
 
     override fun deserializeFromBuffer(input: ByteBufferInput) {
@@ -200,6 +204,10 @@ data class ProxyEntity(
         putByteArray(input.readBytes(input.readVarInt(true)))
 
         dirty = input.readBoolean()
+        if (version >= 1) {
+            speed = input.readInt()
+            speedTestStatus = input.readInt()
+        }
     }
 
 

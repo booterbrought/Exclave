@@ -311,6 +311,102 @@
         </service>
 
         <service
+            android:name="io.nekohasekai.sagernet.bg.GroupTileService1"
+            android:exported="true"
+            android:icon="@drawable/ic_tile_group_1"
+            android:label="@string/qs_tile_group_1"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            android:process=":bg"
+            tools:targetApi="n">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.service.quicksettings.TOGGLEABLE_TILE"
+                android:value="true" />
+        </service>
+
+        <service
+            android:name="io.nekohasekai.sagernet.bg.GroupTileService2"
+            android:exported="true"
+            android:icon="@drawable/ic_tile_group_2"
+            android:label="@string/qs_tile_group_2"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            android:process=":bg"
+            tools:targetApi="n">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.service.quicksettings.TOGGLEABLE_TILE"
+                android:value="true" />
+        </service>
+
+        <service
+            android:name="io.nekohasekai.sagernet.bg.GroupTileService3"
+            android:exported="true"
+            android:icon="@drawable/ic_tile_group_3"
+            android:label="@string/qs_tile_group_3"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            android:process=":bg"
+            tools:targetApi="n">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.service.quicksettings.TOGGLEABLE_TILE"
+                android:value="true" />
+        </service>
+
+        <service
+            android:name="io.nekohasekai.sagernet.bg.GroupTileService4"
+            android:exported="true"
+            android:icon="@drawable/ic_tile_group_4"
+            android:label="@string/qs_tile_group_4"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            android:process=":bg"
+            tools:targetApi="n">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.service.quicksettings.TOGGLEABLE_TILE"
+                android:value="true" />
+        </service>
+
+        <service
+            android:name="io.nekohasekai.sagernet.bg.GroupTileService5"
+            android:exported="true"
+            android:icon="@drawable/ic_tile_group_5"
+            android:label="@string/qs_tile_group_5"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            android:process=":bg"
+            tools:targetApi="n">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.service.quicksettings.TOGGLEABLE_TILE"
+                android:value="true" />
+        </service>
+
+        <service
+            android:name="io.nekohasekai.sagernet.bg.GroupTileService6"
+            android:exported="true"
+            android:icon="@drawable/ic_tile_group_6"
+            android:label="@string/qs_tile_group_6"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            android:process=":bg"
+            tools:targetApi="n">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.service.quicksettings.TOGGLEABLE_TILE"
+                android:value="true" />
+        </service>
+
+        <service
             android:name="androidx.appcompat.app.AppLocalesMetadataHolderService"
             android:enabled="false"
             android:exported="false">

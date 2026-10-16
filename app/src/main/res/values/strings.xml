@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name" translatable="false">Exclave</string>
+    <string name="app_name" translatable="false">Exclave Fork</string>
     <string name="project">Project</string>
     <string name="github">Source code</string>
     <string name="app_version">Version</string>
@@ -285,6 +285,29 @@
     <string name="connection_test">Connection test</string>
     <string name="connection_test_clear_results">Clear test results</string>
     <string name="connection_test_url_test">URL test</string>
+    <string name="connection_test_speed_quick">Quick speed test</string>
+    <string name="connection_test_speed_full">Full speed test (sequential)</string>
+    <string name="connection_test_concurrency">Connection test concurrency</string>
+    <string name="speed_test_url">Speed test URL</string>
+    <string name="speed_test_threshold">Quick speed test threshold (KB/s)</string>
+    <string name="speed_test_duration">Speed test duration (seconds)</string>
+    <string name="qs_tile_assign">Assign Quick Settings tile</string>
+    <string name="assign_network_menu">Assign to Wi-Fi / mobile data</string>
+    <string name="assign_network_title">Assign %s to…</string>
+    <string name="network_mobile">Mobile data</string>
+    <string name="network_none">Not assigned</string>
+    <string name="auto_switch_network">Auto-switch by network</string>
+    <string name="auto_switch_network_sum">Automatically switch to the subscription assigned to the current network type (Wi-Fi or mobile data)</string>
+    <string name="profile_switched">Switched to %s</string>
+    <string name="qs_tile_slot_status">Tile %d — %s</string>
+    <string name="qs_tile_free">unassigned</string>
+    <string name="qs_tile_unassign">Unassign this group</string>
+    <string name="qs_tile_group_1">Exclave: subscription 1</string>
+    <string name="qs_tile_group_2">Exclave: subscription 2</string>
+    <string name="qs_tile_group_3">Exclave: subscription 3</string>
+    <string name="qs_tile_group_4">Exclave: subscription 4</string>
+    <string name="qs_tile_group_5">Exclave: subscription 5</string>
+    <string name="qs_tile_group_6">Exclave: subscription 6</string>
     <string name="connection_test_domain_not_found">Domain not found</string>
     <string name="connection_test_refused">Connection refused</string>
     <string name="connection_test_unreachable">Unreachable</string>

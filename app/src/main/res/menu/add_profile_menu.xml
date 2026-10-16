@@ -128,6 +128,12 @@
                 android:id="@+id/action_connection_url_test"
                 android:title="@string/connection_test_url_test" />
             <item
+                android:id="@+id/action_connection_speed_test"
+                android:title="@string/connection_test_speed_quick" />
+            <item
+                android:id="@+id/action_connection_speed_test_full"
+                android:title="@string/connection_test_speed_full" />
+            <item
                 android:id="@+id/action_connection_test_clear_results"
                 android:title="@string/connection_test_clear_results" />
             <item
@@ -135,6 +141,12 @@
                 android:title="@string/connection_test_delete_unavailable" />
         </menu>
     </item>
+    <item
+        android:id="@+id/action_assign_tile"
+        android:title="@string/qs_tile_assign" />
+    <item
+        android:id="@+id/action_assign_network"
+        android:title="@string/assign_network_menu" />
     <item
         android:id="@+id/action_update_subscription"
         android:title="@string/update_subscription" />

@@ -167,7 +167,8 @@ class V2rayBuildResult(
 
 @OptIn(ExperimentalUuidApi::class)
 fun buildV2RayConfig(
-    proxy: ProxyEntity, forTest: Boolean = false, forExport: Boolean = false
+    proxy: ProxyEntity, forTest: Boolean = false, forExport: Boolean = false,
+    speedTestSocksPort: Int = 0,
 ): V2rayBuildResult {
     if (proxy.type == ProxyEntity.TYPE_CONFIG && proxy.configBean!!.type == "v2ray") {
         return buildCustomConfig(proxy, forTest, forExport)
@@ -500,6 +501,20 @@ fun buildV2RayConfig(
                     })
                 }
             }
+        }
+
+        // dedicated loopback-only inbound for measuring download speed through the test instance
+        if (forTest && speedTestSocksPort > 0) {
+            inbounds.add(InboundObject().apply {
+                tag = "speedtest-in"
+                listen = LOCALHOST
+                port = speedTestSocksPort
+                protocol = "socks"
+                settings = LazyInboundConfigurationObject(this, SocksInboundConfigurationObject().apply {
+                    auth = "noauth"
+                    udp = false
+                })
+            })
         }
 
         outbounds = mutableListOf()

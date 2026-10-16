@@ -20,6 +20,14 @@
 package io.nekohasekai.sagernet
 
 const val CONNECTION_TEST_URL = "https://www.google.com/generate_204"
+const val SPEED_TEST_URL = "https://speed.cloudflare.com/__down?bytes=104857600"
+const val SPEED_TEST_CONNECT_TIMEOUT = 2000
+
+// speedTestStatus values
+const val SPEED_TEST_STATUS_UNTESTED = 0
+const val SPEED_TEST_STATUS_QUICK_PASS = 1
+const val SPEED_TEST_STATUS_QUICK_FAIL = 2
+const val SPEED_TEST_STATUS_MEASURED = 3
 
 object Key {
 
@@ -86,6 +94,11 @@ object Key {
     const val TRANSPROXY_PORT = "transproxyPort"
 
     const val CONNECTION_TEST_URL = "connectionTestURL"
+    const val CONNECTION_TEST_CONCURRENCY = "connectionTestConcurrency"
+    const val SPEED_TEST_URL = "speedTestURL"
+    const val SPEED_TEST_THRESHOLD = "speedTestThreshold"
+    const val SPEED_TEST_DURATION = "speedTestDuration"
+    const val AUTO_SWITCH_NETWORK = "autoSwitchNetwork"
     const val PROBE_URL = "probeUrl"
     const val PROBE_INTERVAL = "probeInterval"
 

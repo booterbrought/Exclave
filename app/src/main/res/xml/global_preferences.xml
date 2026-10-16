@@ -227,6 +227,35 @@
             app:title="@string/connection_test_url"
             app:useSimpleSummaryProvider="true" />
         <SwitchPreference
+            app:icon="@drawable/ic_baseline_speed_24"
+            app:key="autoSwitchNetwork"
+            app:summary="@string/auto_switch_network_sum"
+            app:title="@string/auto_switch_network" />
+        <EditTextPreference
+            app:defaultValue="6"
+            app:icon="@drawable/ic_baseline_speed_24"
+            app:key="connectionTestConcurrency"
+            app:title="@string/connection_test_concurrency"
+            app:useSimpleSummaryProvider="true" />
+        <EditTextPreference
+            app:defaultValue="https://speed.cloudflare.com/__down?bytes=104857600"
+            app:icon="@drawable/ic_baseline_speed_24"
+            app:key="speedTestURL"
+            app:title="@string/speed_test_url"
+            app:useSimpleSummaryProvider="true" />
+        <EditTextPreference
+            app:defaultValue="200"
+            app:icon="@drawable/ic_baseline_speed_24"
+            app:key="speedTestThreshold"
+            app:title="@string/speed_test_threshold"
+            app:useSimpleSummaryProvider="true" />
+        <EditTextPreference
+            app:defaultValue="10"
+            app:icon="@drawable/ic_baseline_speed_24"
+            app:key="speedTestDuration"
+            app:title="@string/speed_test_duration"
+            app:useSimpleSummaryProvider="true" />
+        <SwitchPreference
             app:icon="@drawable/baseline_construction_24"
             app:key="realityDisableX25519Mlkem768"
             app:summary="@string/reality_breaking_change_summary"

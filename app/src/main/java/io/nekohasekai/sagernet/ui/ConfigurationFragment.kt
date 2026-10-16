@@ -20,9 +20,12 @@
 package io.nekohasekai.sagernet.ui
 
 import android.app.Activity
+import android.content.ComponentName
 import android.content.DialogInterface
 import android.content.Intent
 import android.graphics.Color
+import android.graphics.drawable.Icon
+import android.os.Build
 import android.os.Bundle
 import android.provider.OpenableColumns
 import android.view.*
@@ -34,6 +37,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.widget.PopupMenu
 import androidx.appcompat.widget.SearchView
 import androidx.appcompat.widget.Toolbar
+import androidx.annotation.RequiresApi
+import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isGone
@@ -52,6 +57,11 @@ import com.google.android.material.tabs.TabLayoutMediator
 import io.nekohasekai.sagernet.*
 import io.nekohasekai.sagernet.aidl.TrafficStats
 import io.nekohasekai.sagernet.bg.BaseService
+import io.nekohasekai.sagernet.bg.NetworkSwitcher
+import io.nekohasekai.sagernet.bg.QS_TILE_SLOTS
+import io.nekohasekai.sagernet.bg.tileIconRes
+import io.nekohasekai.sagernet.bg.tileServiceClass
+import io.nekohasekai.sagernet.bg.test.SpeedTester
 import io.nekohasekai.sagernet.bg.test.V2RayTestInstance
 import io.nekohasekai.sagernet.database.*
 import io.nekohasekai.sagernet.databinding.LayoutProfileBinding
@@ -75,6 +85,7 @@ import kotlinx.coroutines.sync.withLock
 import java.util.*
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.zip.ZipInputStream
+import java.net.ServerSocket
 import kotlin.concurrent.timerTask
 import io.nekohasekai.sagernet.database.SagerDatabase
 import io.nekohasekai.sagernet.fmt.internal.BalancerBean
@@ -560,9 +571,11 @@ class ConfigurationFragment @JvmOverloads constructor(
                     val profiles = SagerDatabase.proxyDao.getByGroup(DataStore.currentGroupId())
                     val toClear = mutableListOf<ProxyEntity>()
                     if (profiles.isNotEmpty()) for (profile in profiles) {
-                        if (profile.status != 0) {
+                        if (profile.status != 0 || profile.speedTestStatus != 0) {
                             profile.status = 0
                             profile.ping = 0
+                            profile.speed = 0
+                            profile.speedTestStatus = 0
                             profile.error = null
                             toClear.add(profile)
                         }
@@ -675,6 +688,95 @@ class ConfigurationFragment @JvmOverloads constructor(
             R.id.action_connection_url_test -> {
                 urlTest()
             }
+            R.id.action_connection_speed_test -> {
+                runSpeedTest(quick = true)
+            }
+            R.id.action_connection_speed_test_full -> {
+                runSpeedTest(quick = false)
+            }
+            R.id.action_assign_tile -> {
+                runOnDefaultDispatcher {
+                    val group = DataStore.currentGroup()
+                    val slots = (1..QS_TILE_SLOTS).associateWith { slot -> DataStore.qsTileGroup(slot) }
+                    val names = slots.mapValues { (_, gid) ->
+                        gid?.let { SagerDatabase.groupDao.getById(it)?.name }
+                    }
+                    val boundSlot = slots.entries.firstOrNull { it.value == group.id }?.key
+                    onMainDispatcher {
+                        val items = (1..QS_TILE_SLOTS).map { slot ->
+                            getString(
+                                R.string.qs_tile_slot_status, slot,
+                                names[slot] ?: getString(R.string.qs_tile_free)
+                            )
+                        }.toTypedArray()
+                        val builder = MaterialAlertDialogBuilder(requireContext())
+                            .setTitle(R.string.qs_tile_assign)
+                            .setItems(items) { _, which ->
+                                val slot = which + 1
+                                runOnDefaultDispatcher {
+                                    DataStore.putQsTileGroup(slot, group.id)
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                        requestAddTile(slot, group.name ?: getString(R.string.app_name))
+                                    }
+                                }
+                            }
+                            .setPositiveButton(android.R.string.cancel, null)
+                        if (boundSlot != null) {
+                            builder.setNegativeButton(R.string.qs_tile_unassign) { _, _ ->
+                                runOnDefaultDispatcher {
+                                    DataStore.putQsTileGroup(boundSlot, null)
+                                }
+                            }
+                        }
+                        builder.show()
+                    }
+                }
+            }
+            R.id.action_assign_network -> {
+                runOnDefaultDispatcher {
+                    val group = DataStore.currentGroup()
+                    val current = DataStore.groupNetRole(group.id)
+                    onMainDispatcher {
+                        val options = arrayOf(
+                            getString(R.string.network_wifi),
+                            getString(R.string.network_mobile),
+                            getString(R.string.network_none),
+                        )
+                        val checked = when (current) {
+                            NetworkSwitcher.ROLE_WIFI -> 0
+                            NetworkSwitcher.ROLE_MOBILE -> 1
+                            else -> 2
+                        }
+                        MaterialAlertDialogBuilder(requireContext())
+                            .setTitle(
+                                getString(
+                                    R.string.assign_network_title,
+                                    group.name ?: getString(R.string.app_name)
+                                )
+                            )
+                            .setSingleChoiceItems(options, checked) { dialog, which ->
+                                dialog.dismiss()
+                                runOnDefaultDispatcher {
+                                    val role = when (which) {
+                                        0 -> NetworkSwitcher.ROLE_WIFI
+                                        1 -> NetworkSwitcher.ROLE_MOBILE
+                                        else -> ""
+                                    }
+                                    if (role.isNotEmpty()) {
+                                        // keep a single group per network role
+                                        SagerDatabase.groupDao.allGroups().forEach { g ->
+                                            if (g.id != group.id && DataStore.groupNetRole(g.id) == role) {
+                                                DataStore.putGroupNetRole(g.id, "")
+                                            }
+                                        }
+                                    }
+                                    DataStore.putGroupNetRole(group.id, role)
+                                }
+                            }
+                            .show()
+                    }
+                }
+            }
             R.id.action_update_subscription -> {
                 runOnDefaultDispatcher {
                     val currentGroup = DataStore.currentGroup()
@@ -780,9 +882,23 @@ class ConfigurationFragment @JvmOverloads constructor(
                         binding.profileStatus.setText(R.string.connection_test_testing)
                         binding.profileStatus.setTextColor(requireContext().getColorAttr(android.R.attr.textColorSecondary))
                     }
-                    1 -> {
-                        binding.profileStatus.text = getString(R.string.available, profile.ping)
-                        binding.profileStatus.setTextColor(requireContext().getColour(R.color.material_green_500))
+                    1 -> when (profile.speedTestStatus) {
+                        SPEED_TEST_STATUS_QUICK_PASS -> {
+                            binding.profileStatus.text = "✓ " + formatSpeed(profile.speed)
+                            binding.profileStatus.setTextColor(requireContext().getColour(R.color.material_green_500))
+                        }
+                        SPEED_TEST_STATUS_QUICK_FAIL -> {
+                            binding.profileStatus.text = "✗ " + formatSpeed(profile.speed)
+                            binding.profileStatus.setTextColor(requireContext().getColour(R.color.material_red_500))
+                        }
+                        SPEED_TEST_STATUS_MEASURED -> {
+                            binding.profileStatus.text = formatSpeed(profile.speed)
+                            binding.profileStatus.setTextColor(requireContext().getColour(R.color.material_green_500))
+                        }
+                        else -> {
+                            binding.profileStatus.text = getString(R.string.available, profile.ping)
+                            binding.profileStatus.setTextColor(requireContext().getColour(R.color.material_green_500))
+                        }
                     }
                     2 -> {
                         binding.profileStatus.text = profile.error
@@ -799,7 +915,26 @@ class ConfigurationFragment @JvmOverloads constructor(
                         alert(profile.error ?: "<?>").show()
                     }
                 } else {
-                    binding.content.setOnClickListener {}
+                    binding.content.setOnClickListener {
+                        runOnDefaultDispatcher {
+                            DataStore.selectedProxy = profile.id
+                            DataStore.putGroupLastProfile(profile.groupId, profile.id)
+                            if (DataStore.startedProfile == profile.id) {
+                                return@runOnDefaultDispatcher
+                            }
+                            val mainActivity = activity as? MainActivity
+                            if (mainActivity != null && mainActivity.state.canStop) {
+                                SagerNet.reloadService()
+                            } else if (!SagerNet.started) {
+                                SagerNet.startService()
+                            }
+                            onMainDispatcher {
+                                snackbar(
+                                    getString(R.string.profile_switched, profile.displayName())
+                                ).show()
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -851,7 +986,7 @@ class ConfigurationFragment @JvmOverloads constructor(
             val link = DataStore.connectionTestURL
             val timeout = 5000
 
-            repeat(6) {
+            repeat(DataStore.connectionTestConcurrency.coerceIn(1, 32)) {
                 testJobs.add(launch {
                     while (isActive) {
                         val profile = profiles.poll() ?: break
@@ -875,6 +1010,124 @@ class ConfigurationFragment @JvmOverloads constructor(
                         } catch (e: Exception) {
                             profile.status = 3
                             profile.error = e.readableMessage
+                        }
+                        onMainDispatcher {
+                            finishedProfileCount++
+                            test.binding.progressCircular.apply {
+                                isVisible = true
+                                setProgressCompat(
+                                    ((finishedProfileCount.toDouble() / profileCount.toDouble()) * 100).toInt(),
+                                    true
+                                )
+                            }
+                            // TODO: fix l10n
+                            dialog.getButton(DialogInterface.BUTTON_NEUTRAL).text = "$finishedProfileCount/$profileCount"
+                        }
+
+                        test.update(profile)
+                        ProfileManager.updateProfile(profile)
+                    }
+                })
+            }
+
+            testJobs.joinAll()
+            test.close()
+            onMainDispatcher {
+                test.binding.progressCircular.isGone = true
+                dialog.getButton(DialogInterface.BUTTON_NEGATIVE).setText(android.R.string.ok)
+            }
+        }
+        test.cancel = {
+            mainJob.cancel()
+            runOnDefaultDispatcher {
+                GroupManager.postReload(DataStore.currentGroupId())
+            }
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
+    private fun requestAddTile(slot: Int, label: String) {
+        val statusBarManager =
+            requireContext().getSystemService(android.app.StatusBarManager::class.java) ?: return
+        statusBarManager.requestAddTileService(
+            ComponentName(requireContext(), tileServiceClass(slot)),
+            label,
+            Icon.createWithResource(requireContext(), tileIconRes(slot)),
+            ContextCompat.getMainExecutor(requireContext()),
+        ) { }
+    }
+
+    @Suppress("EXPERIMENTAL_API_USAGE")
+    fun runSpeedTest(quick: Boolean) {
+        val test = TestDialog()
+        val dialog = test.builder.show()
+        dialog.getButton(DialogInterface.BUTTON_NEUTRAL).isEnabled = false
+        val testJobs = mutableListOf<Job>()
+
+        val mainJob = runOnDefaultDispatcher {
+            val group = DataStore.currentGroup()
+            var profilesUnfiltered = SagerDatabase.proxyDao.getByGroup(group.id)
+            profilesUnfiltered = profilesUnfiltered.filter {
+                !it.useBrowserForwarder()
+            }
+            val profiles = ConcurrentLinkedQueue(profilesUnfiltered)
+
+            val profileCount = profilesUnfiltered.size
+            var finishedProfileCount = 0
+
+            val link = DataStore.connectionTestURL
+            val timeout = SPEED_TEST_CONNECT_TIMEOUT
+            val speedURL = DataStore.speedTestURL
+            val thresholdKBps = DataStore.speedTestThreshold.coerceIn(1, 1024 * 1024)
+            val durationMs = DataStore.speedTestDuration.coerceIn(1, 300) * 1000L
+            val concurrency = if (quick) DataStore.connectionTestConcurrency.coerceIn(1, 32) else 1
+
+            repeat(concurrency) {
+                testJobs.add(launch {
+                    while (isActive) {
+                        val profile = profiles.poll() ?: break
+                        profile.status = 0
+                        test.insert(profile)
+
+                        try {
+                            val socksPort = ServerSocket(0).use { it.localPort }
+                            val instance = if (DataStore.tunImplementation == TunImplementation.SYSTEM && DataStore.serviceMode == Key.MODE_VPN && SagerNet.started && DataStore.startedProfile > 0) {
+                                V2RayTestInstance(profile, link, timeout, protectPath = SagerNet.deviceStorage.noBackupFilesDir.toString() + "/protect_path", speedTestSocksPort = socksPort)
+                            } else {
+                                V2RayTestInstance(profile, link, timeout, speedTestSocksPort = socksPort)
+                            }
+                            instance.use {
+                                // connection check first, with a small timeout
+                                val ping = it.startAndTestConnection()
+                                profile.status = 1
+                                profile.ping = ping
+
+                                if (profile.type == ProxyEntity.TYPE_CONFIG) {
+                                    // custom config has no dedicated inbound; keep the latency result only
+                                    return@use
+                                }
+                                val result = SpeedTester.measure(socksPort, speedURL, durationMs, thresholdKBps, quick)
+                                if (result.error == null) {
+                                    profile.speed = result.kbps
+                                    profile.speedTestStatus = when {
+                                        !quick -> SPEED_TEST_STATUS_MEASURED
+                                        result.exceeded == true -> SPEED_TEST_STATUS_QUICK_PASS
+                                        else -> SPEED_TEST_STATUS_QUICK_FAIL
+                                    }
+                                } else {
+                                    profile.speed = 0
+                                    profile.speedTestStatus = 0
+                                    profile.error = result.error
+                                }
+                            }
+                        } catch (e: PluginManager.PluginNotFoundException) {
+                            profile.status = -1
+                            profile.error = e.readableMessage
+                        } catch (e: Exception) {
+                            profile.status = 3
+                            profile.error = e.readableMessage
+                            profile.speed = 0
+                            profile.speedTestStatus = 0
                         }
                         onMainDispatcher {
                             finishedProfileCount++
@@ -1600,6 +1853,7 @@ class ConfigurationFragment @JvmOverloads constructor(
                             profileAccess.withLock {
                                 update = DataStore.selectedProxy != id
                                 DataStore.selectedProxy = id
+                                DataStore.putGroupLastProfile(entity.groupId, id)
                             }
 
                             if (update) {
@@ -1729,6 +1983,18 @@ class ConfigurationFragment @JvmOverloads constructor(
                         } else {
                             profileStatus.text = ""
                         }
+                    }
+                    proxyEntity.status == 1 && proxyEntity.speedTestStatus == SPEED_TEST_STATUS_QUICK_PASS -> {
+                        profileStatus.text = "✓ " + formatSpeed(proxyEntity.speed)
+                        profileStatus.setTextColor(requireContext().getColour(R.color.material_green_500))
+                    }
+                    proxyEntity.status == 1 && proxyEntity.speedTestStatus == SPEED_TEST_STATUS_QUICK_FAIL -> {
+                        profileStatus.text = "✗ " + formatSpeed(proxyEntity.speed)
+                        profileStatus.setTextColor(requireContext().getColour(R.color.material_red_500))
+                    }
+                    proxyEntity.status == 1 && proxyEntity.speedTestStatus == SPEED_TEST_STATUS_MEASURED -> {
+                        profileStatus.text = formatSpeed(proxyEntity.speed)
+                        profileStatus.setTextColor(requireContext().getColour(R.color.material_green_500))
                     }
                     proxyEntity.status == 1 -> {
                         profileStatus.text = getString(R.string.available, proxyEntity.ping)
@@ -1899,5 +2165,12 @@ class ConfigurationFragment @JvmOverloads constructor(
 
             }
         }
+    }
+}
+private fun formatSpeed(kbps: Int): String {
+    return if (kbps >= 1024) {
+        String.format(Locale.US, "%.1f MB/s", kbps / 1024.0)
+    } else {
+        "$kbps KB/s"
     }
 }

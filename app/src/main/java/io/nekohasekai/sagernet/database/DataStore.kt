@@ -272,6 +272,31 @@ object DataStore : OnPreferenceDataStoreChangeListener {
     // var transproxyMode by configurationStore.stringToInt(Key.TRANSPROXY_MODE)
     var requireDnsInbound by configurationStore.boolean(Key.REQUIRE_DNS_INBOUND)
     var connectionTestURL by configurationStore.string(Key.CONNECTION_TEST_URL) { CONNECTION_TEST_URL }
+    var connectionTestConcurrency by configurationStore.stringToInt(Key.CONNECTION_TEST_CONCURRENCY) { 6 }
+    var speedTestURL by configurationStore.string(Key.SPEED_TEST_URL) { SPEED_TEST_URL }
+    var speedTestThreshold by configurationStore.stringToInt(Key.SPEED_TEST_THRESHOLD) { 200 }
+    var speedTestDuration by configurationStore.stringToInt(Key.SPEED_TEST_DURATION) { 10 }
+
+    // quick settings tiles per subscription group
+    fun qsTileGroup(slot: Int): Long? =
+        configurationStore.getString("qsTileGroup$slot")?.toLongOrNull()
+
+    fun putQsTileGroup(slot: Int, groupId: Long?) =
+        configurationStore.putString("qsTileGroup$slot", groupId?.toString() ?: "")
+
+    fun groupLastProfile(groupId: Long): Long? =
+        configurationStore.getString("groupLastProfile$groupId")?.toLongOrNull()
+
+    fun putGroupLastProfile(groupId: Long, profileId: Long?) =
+        configurationStore.putString("groupLastProfile$groupId", profileId?.toString() ?: "")
+
+    var autoSwitchNetwork by configurationStore.boolean(Key.AUTO_SWITCH_NETWORK)
+
+    fun groupNetRole(groupId: Long): String? =
+        configurationStore.getString("groupNetRole$groupId")
+
+    fun putGroupNetRole(groupId: Long, role: String?) =
+        configurationStore.putString("groupNetRole$groupId", role ?: "")
     var alwaysShowAddress by configurationStore.boolean(Key.ALWAYS_SHOW_ADDRESS)
     var showGroupName by configurationStore.boolean(Key.SHOW_GROUP_NAME)
 
