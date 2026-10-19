@@ -23,6 +23,7 @@ import android.net.NetworkCapabilities
 import io.nekohasekai.sagernet.SagerNet
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.SagerDatabase
+import io.nekohasekai.sagernet.ktx.Logs
 
 object NetworkSwitcher {
 
@@ -39,16 +40,46 @@ object NetworkSwitcher {
         val connectivityManager =
             SagerNet.application.getSystemService(android.net.ConnectivityManager::class.java)
                 ?: return
-        val capabilities = network?.let { connectivityManager.getNetworkCapabilities(it) } ?: return
+        var caps = network?.let { connectivityManager.getNetworkCapabilities(it) }
+        if (caps == null || caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN) ||
+            (!caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+                    && !caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR))
+        ) {
+            // some devices/ROMs report the VPN or a transport-less network: find the
+            // underlying physical one ourselves
+            caps = connectivityManager.allNetworks.asSequence()
+                .mapNotNull { n -> connectivityManager.getNetworkCapabilities(n) }
+                .firstOrNull {
+                    it.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                            && !it.hasTransport(NetworkCapabilities.TRANSPORT_VPN)
+                            && (it.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+                            || it.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR))
+                }
+        }
         val role = when {
-            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> ROLE_WIFI
-            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> ROLE_MOBILE
-            else -> return
+            caps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true -> ROLE_WIFI
+            caps?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true -> ROLE_MOBILE
+            else -> {
+                Logs.d("auto-switch: no wifi/cellular network (caps=$caps)")
+                return
+            }
         }
         val target = SagerDatabase.groupDao.allGroups()
-            .firstOrNull { DataStore.groupNetRole(it.id) == role } ?: return
-        val running = SagerDatabase.proxyDao.getById(DataStore.startedProfile) ?: return
-        if (running.groupId == target.id) return
+            .firstOrNull { DataStore.groupNetRole(it.id) == role }
+        if (target == null) {
+            Logs.d("auto-switch: $role has no assigned group")
+            return
+        }
+        val running = SagerDatabase.proxyDao.getById(DataStore.startedProfile)
+        if (running == null) {
+            Logs.d("auto-switch: nothing is running")
+            return
+        }
+        if (running.groupId == target.id) {
+            Logs.d("auto-switch: already on ${target.displayName()}")
+            return
+        }
+        Logs.i("auto-switch: network is $role, switching to ${target.displayName()}")
         GroupSwitcher.switchTo(target.id, BaseService.State.Connected)
     }
 
