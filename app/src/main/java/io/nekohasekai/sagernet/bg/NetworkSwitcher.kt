@@ -20,15 +20,22 @@ package io.nekohasekai.sagernet.bg
 
 import android.net.Network
 import android.net.NetworkCapabilities
+import android.os.SystemClock
 import io.nekohasekai.sagernet.SagerNet
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.SagerDatabase
 import io.nekohasekai.sagernet.ktx.Logs
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 object NetworkSwitcher {
 
     const val ROLE_WIFI = "wifi"
     const val ROLE_MOBILE = "mobile"
+
+    private val switchLock = Mutex()
+    private var lastSwitchElapsed = 0L
+    private var lastSwitchTarget = 0L
 
     /**
      * Called on default network changes: when enabled and the running profile does not belong
@@ -70,17 +77,29 @@ object NetworkSwitcher {
             Logs.d("auto-switch: $role has no assigned group")
             return
         }
-        val running = SagerDatabase.proxyDao.getById(DataStore.startedProfile)
-        if (running == null) {
-            Logs.d("auto-switch: nothing is running")
-            return
+        switchLock.withLock {
+            // one network change fires a burst of events: reload only once
+            val now = SystemClock.elapsedRealtime()
+            if (target.id == lastSwitchTarget && now - lastSwitchElapsed < 5000) {
+                Logs.d("auto-switch: debounced, just switched to ${target.displayName()}")
+                return
+            }
+            val running = SagerDatabase.proxyDao.getById(DataStore.startedProfile)
+            if (running == null) {
+                Logs.d("auto-switch: nothing is running")
+                return
+            }
+            if (running.groupId == target.id) {
+                Logs.d("auto-switch: already on ${target.displayName()}")
+                lastSwitchTarget = target.id
+                lastSwitchElapsed = now
+                return
+            }
+            Logs.i("auto-switch: network is $role, switching to ${target.displayName()}")
+            lastSwitchTarget = target.id
+            lastSwitchElapsed = now
+            GroupSwitcher.switchTo(target.id, BaseService.State.Connected)
         }
-        if (running.groupId == target.id) {
-            Logs.d("auto-switch: already on ${target.displayName()}")
-            return
-        }
-        Logs.i("auto-switch: network is $role, switching to ${target.displayName()}")
-        GroupSwitcher.switchTo(target.id, BaseService.State.Connected)
     }
 
 }
