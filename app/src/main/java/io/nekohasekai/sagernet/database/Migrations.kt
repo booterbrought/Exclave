@@ -35,12 +35,16 @@ object SagerDatabase_Migration_1_2 : Migration(1, 2) {
 
 object SagerDatabase_Migration_39_40 : Migration(39, 40) {
     override fun migrate(database: SupportSQLiteDatabase): Unit {
-        // fork databases at our old schema 38 already carry the speed columns;
-        // upstream databases at 39 do not, so add them only when missing
+        // fork databases at our old schema 38 (= upstream 37 + speed columns) already carry
+        // the speed columns but are missing upstream's 37->38 masqueBean column; upstream
+        // databases at 39 have masqueBean but lack speed. Add whatever is missing.
         val columns = mutableSetOf<String>()
         database.query("PRAGMA table_info(`proxy_entities`)").use { cursor ->
             val nameIdx = cursor.getColumnIndex("name")
             while (cursor.moveToNext()) columns += cursor.getString(nameIdx)
+        }
+        if ("masqueBean" !in columns) {
+            database.execSQL("""ALTER TABLE `proxy_entities` ADD `masqueBean` BLOB DEFAULT NULL""")
         }
         if ("speed" !in columns) {
             database.execSQL("""ALTER TABLE `proxy_entities` ADD `speed` INTEGER NOT NULL DEFAULT 0""")
