@@ -25,11 +25,12 @@ Some supported protocols:
 - VMess (with various optional sub-protocols)
 - VLESS (with various optional sub-protocols)
 - WireGuard (TCP and UDP only)
+- MASQUE (a.k.a. CONNECT-IP, TCP and UDP only)
 - TrustTunnel (no ICMP echo support)
 - Snell v4 and Snell v6
 - ShadowQUIC
 - SSH proxy ("dynamic port forwarding")
-- HTTP CONNECT tunnel (HTTP/1.1, HTTP/1.1 with TLS, HTTP/2 and HTTP/3)
+- HTTP CONNECT tunnel (HTTP/1.1, HTTP/1.1 with TLS, HTTP/2 and HTTP/3, with CONNECT-UDP support)
 - SOCKS4, SOCKS4A and SOCKS5
 
 </details>

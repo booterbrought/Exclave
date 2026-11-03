@@ -207,10 +207,9 @@ fun Project.setupApp() {
         }
         productFlavors.create("legacy") {
             minSdk = 21
-            proguardFiles("proguard-rules-legacy.pro")
         }
         tasks.register("downloadAssets") {
-            downloadAssets(update = false)
+            downloadAssets()
         }
         tasks.register("updateAssets") {
             downloadRootCAList()

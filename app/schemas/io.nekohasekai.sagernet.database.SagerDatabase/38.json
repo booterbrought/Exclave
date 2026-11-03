@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 38,
-    "identityHash": "9b6a6a8422fb1b20bd8adbd6888610bd",
+    "identityHash": "26681582139961dcbd70c1096cf8a998",
     "entities": [
       {
         "tableName": "proxy_groups",
@@ -72,7 +72,7 @@
       },
       {
         "tableName": "proxy_entities",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `groupId` INTEGER NOT NULL, `type` INTEGER NOT NULL, `userOrder` INTEGER NOT NULL, `tx` INTEGER NOT NULL, `rx` INTEGER NOT NULL, `status` INTEGER NOT NULL, `ping` INTEGER NOT NULL, `speed` INTEGER NOT NULL DEFAULT 0, `speedTestStatus` INTEGER NOT NULL DEFAULT 0, `uuid` TEXT NOT NULL, `error` TEXT, `socksBean` BLOB, `httpBean` BLOB, `ssBean` BLOB, `ssrBean` BLOB, `vmessBean` BLOB, `vlessBean` BLOB, `trojanBean` BLOB, `naiveBean` BLOB, `hysteria2Bean` BLOB, `mieruBean` BLOB, `tuic5Bean` BLOB, `sshBean` BLOB, `wgBean` BLOB, `juicityBean` BLOB, `http3Bean` BLOB, `anytlsBean` BLOB, `shadowquicBean` BLOB, `trustTunnelBean` BLOB, `snellBean` BLOB, `configBean` BLOB, `chainBean` BLOB, `balancerBean` BLOB)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `groupId` INTEGER NOT NULL, `type` INTEGER NOT NULL, `userOrder` INTEGER NOT NULL, `tx` INTEGER NOT NULL, `rx` INTEGER NOT NULL, `status` INTEGER NOT NULL, `ping` INTEGER NOT NULL, `uuid` TEXT NOT NULL, `error` TEXT, `socksBean` BLOB, `httpBean` BLOB, `ssBean` BLOB, `ssrBean` BLOB, `vmessBean` BLOB, `vlessBean` BLOB, `trojanBean` BLOB, `naiveBean` BLOB, `hysteria2Bean` BLOB, `mieruBean` BLOB, `tuic5Bean` BLOB, `sshBean` BLOB, `wgBean` BLOB, `juicityBean` BLOB, `http3Bean` BLOB, `anytlsBean` BLOB, `shadowquicBean` BLOB, `trustTunnelBean` BLOB, `snellBean` BLOB, `masqueBean` BLOB, `configBean` BLOB, `chainBean` BLOB, `balancerBean` BLOB)",
         "fields": [
           {
             "fieldPath": "id",
@@ -121,20 +121,6 @@
             "columnName": "ping",
             "affinity": "INTEGER",
             "notNull": true
-          },
-          {
-            "fieldPath": "speed",
-            "columnName": "speed",
-            "affinity": "INTEGER",
-            "notNull": true,
-            "defaultValue": "0"
-          },
-          {
-            "fieldPath": "speedTestStatus",
-            "columnName": "speedTestStatus",
-            "affinity": "INTEGER",
-            "notNull": true,
-            "defaultValue": "0"
           },
           {
             "fieldPath": "uuid",
@@ -240,6 +226,11 @@
           {
             "fieldPath": "snellBean",
             "columnName": "snellBean",
+            "affinity": "BLOB"
+          },
+          {
+            "fieldPath": "masqueBean",
+            "columnName": "masqueBean",
             "affinity": "BLOB"
           },
           {
@@ -474,7 +465,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '9b6a6a8422fb1b20bd8adbd6888610bd')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '26681582139961dcbd70c1096cf8a998')"
     ]
   }
 }

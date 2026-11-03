@@ -255,6 +255,9 @@ object Key {
     const val SERVER_HTTP_CONNECT_UDP_CATEGORY = "serverHTTPConnectUDPCategory"
     const val SERVER_HTTP_CONNECT_UDP = "serverHTTPConnectUDP"
     const val SERVER_HTTP_CONNECT_UDP_URI_TEMPLATE = "serverHTTPConnectUDPURITemplate"
+    const val SERVER_MASQUE_URI_TEMPLATE = "serverMASQUEURITemplate"
+    const val SERVER_MASQUE_MTU = "serverMASQUEMTU"
+    const val SERVER_MASQUE_HTTP3 = "serverMASQUEHTTP3"
 
     const val SERVER_PORTS = "serverPorts"
     const val SERVER_HOP_INTERVAL = "serverHopInterval"
@@ -376,8 +379,8 @@ object TunImplementation {
 
 object RootCAProvider {
     const val MOZILLA = 0
-    const val SYSTEM = 1
-    const val SYSTEM_AND_USER = 2 // for https://github.com/golang/go/issues/71258
+    const val GO = 1
+    const val ANDROID = 2
     const val CUSTOM = 3
 }
 

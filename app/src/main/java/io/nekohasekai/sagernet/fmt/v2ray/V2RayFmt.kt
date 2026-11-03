@@ -457,12 +457,8 @@ fun parseV2Ray(link: String): StandardV2RayBean {
             val json = parseJson(finalmask).asJsonObject
             if (!json.isEmpty) {
                 when (bean.type) {
-                    "tcp", "ws", "grpc", "httpupgrade", "http" -> {
-                        // ban Xray TCP finalmask
-                        json.getArray("tcp", ignoreCase = true)?.takeIf { it.isNotEmpty() }?.also {
-                            error("unsupported")
-                        }
-                    }
+                    // Xray TCP finalmask (fragment) can not be represented by the bean: ignore it
+                    // instead of rejecting the link. Use the global fragmentation setting instead.
                     "kcp" -> {
                         json.getArray("udp", ignoreCase = true)?.takeIf { it.isNotEmpty() }?.also { udpMasks ->
                             if (udpMasks.size !in 1..2) error("unsupported")
@@ -518,17 +514,7 @@ fun parseV2Ray(link: String): StandardV2RayBean {
                             }
                         }
                     }
-                    "splithttp" -> {
-                        // leave it broken, I don't care
-                        // ban Xray TCP finalmask
-                        json.getArray("tcp", ignoreCase = true)?.takeIf { it.isNotEmpty() }?.also {
-                            error("unsupported")
-                        }
-                        // ban Xray UDP finalmask
-                        json.getArray("udp", ignoreCase = true)?.takeIf { it.isNotEmpty() }?.also {
-                            error("unsupported")
-                        }
-                    }
+                    else -> {}
                 }
             }
         } catch (e: Exception) {
