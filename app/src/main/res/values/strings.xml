@@ -293,6 +293,12 @@
     <string name="speed_test_duration">Speed test duration (seconds)</string>
     <string name="qs_tile_assign">Assign Quick Settings tile</string>
     <string name="assign_network_menu">Assign to Wi-Fi / mobile data</string>
+    <string name="assign_target_group">This group (last used profile)</string>
+    <string name="assign_target_profile">Specific profile…</string>
+    <string name="assign_target_clear">Not assigned (clear)</string>
+    <string name="assign_pick_profile">Pick a profile</string>
+    <string name="assign_network_role">Assign to network…</string>
+    <string name="qs_tile_slot_short">Tile %d</string>
     <string name="assign_network_title">Assign %s to…</string>
     <string name="network_mobile">Mobile data</string>
     <string name="network_none">Not assigned</string>

@@ -23,6 +23,8 @@ import android.net.NetworkCapabilities
 import android.os.SystemClock
 import io.nekohasekai.sagernet.SagerNet
 import io.nekohasekai.sagernet.database.DataStore
+import io.nekohasekai.sagernet.database.ProxyEntity
+import io.nekohasekai.sagernet.database.ProxyGroup
 import io.nekohasekai.sagernet.database.SagerDatabase
 import io.nekohasekai.sagernet.ktx.Logs
 import kotlinx.coroutines.sync.Mutex
@@ -35,11 +37,13 @@ object NetworkSwitcher {
 
     private val switchLock = Mutex()
     private var lastSwitchElapsed = 0L
-    private var lastSwitchTarget = 0L
+    private var lastSwitchKey: String? = null
 
     /**
-     * Called on default network changes: when enabled and the running profile does not belong
-     * to the group assigned to the current network type (Wi-Fi or mobile data), switch to it.
+     * Called on default network changes: when enabled and the running profile is not the one
+     * assigned to the current network type (Wi-Fi or mobile data), switch to it. The target is
+     * either an exact profile ("p:<id>") or a group ("g:<id>", switches to its last used
+     * profile); when no explicit target is set, the legacy per-group role is used.
      */
     suspend fun onNetworkChanged(network: Network?) {
         if (!DataStore.autoSwitchNetwork) return
@@ -71,34 +75,73 @@ object NetworkSwitcher {
                 return
             }
         }
-        val target = SagerDatabase.groupDao.allGroups()
-            .firstOrNull { DataStore.groupNetRole(it.id) == role }
-        if (target == null) {
-            Logs.d("auto-switch: $role has no assigned group")
-            return
-        }
+        val running = SagerDatabase.proxyDao.getById(DataStore.startedProfile) ?: return
+
         switchLock.withLock {
             // one network change fires a burst of events: reload only once
             val now = SystemClock.elapsedRealtime()
-            if (target.id == lastSwitchTarget && now - lastSwitchElapsed < 5000) {
-                Logs.d("auto-switch: debounced, just switched to ${target.displayName()}")
+            if (lastSwitchKey != null && now - lastSwitchElapsed < 5000) {
+                Logs.d("auto-switch: debounced, just switched")
                 return
             }
-            val running = SagerDatabase.proxyDao.getById(DataStore.startedProfile)
-            if (running == null) {
-                Logs.d("auto-switch: nothing is running")
+
+            // explicit profile/group target wins over the legacy per-group role
+            var targetProfile: ProxyEntity? = null
+            var targetGroup: ProxyGroup? = null
+            val explicit = DataStore.netTarget(role)
+            when {
+                explicit.isNullOrEmpty() -> {
+                    val group = SagerDatabase.groupDao.allGroups()
+                        .firstOrNull { DataStore.groupNetRole(it.id) == role }
+                    if (group == null) {
+                        Logs.d("auto-switch: $role has no assigned target")
+                        return
+                    }
+                    targetGroup = group
+                }
+                explicit.startsWith("p:") -> {
+                    targetProfile = SagerDatabase.proxyDao.getById(
+                        explicit.removePrefix("p:").toLongOrNull() ?: return
+                    ) ?: return
+                }
+                explicit.startsWith("g:") -> {
+                    targetGroup = SagerDatabase.groupDao.getById(
+                        explicit.removePrefix("g:").toLongOrNull() ?: return
+                    ) ?: return
+                }
+                else -> return
+            }
+
+            val key: String
+            val targetName: String
+            if (targetProfile != null) {
+                key = "p:${targetProfile.id}"
+                targetName = targetProfile.displayName()
+                if (running.id == targetProfile.id) {
+                    Logs.d("auto-switch: already on $targetName")
+                    lastSwitchKey = key
+                    lastSwitchElapsed = now
+                    return
+                }
+                Logs.i("auto-switch: network is $role, switching to $targetName")
+                lastSwitchKey = key
+                lastSwitchElapsed = now
+                GroupSwitcher.switchToProfile(targetProfile.id, BaseService.State.Connected)
                 return
             }
-            if (running.groupId == target.id) {
-                Logs.d("auto-switch: already on ${target.displayName()}")
-                lastSwitchTarget = target.id
+            val group = targetGroup ?: return
+            key = "g:${group.id}"
+            targetName = group.displayName()
+            if (running.groupId == group.id) {
+                Logs.d("auto-switch: already on $targetName")
+                lastSwitchKey = key
                 lastSwitchElapsed = now
                 return
             }
-            Logs.i("auto-switch: network is $role, switching to ${target.displayName()}")
-            lastSwitchTarget = target.id
+            Logs.i("auto-switch: network is $role, switching to $targetName")
+            lastSwitchKey = key
             lastSwitchElapsed = now
-            GroupSwitcher.switchTo(target.id, BaseService.State.Connected)
+            GroupSwitcher.switchTo(group.id, BaseService.State.Connected)
         }
     }
 

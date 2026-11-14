@@ -297,6 +297,20 @@ object DataStore : OnPreferenceDataStoreChangeListener {
 
     fun putGroupNetRole(groupId: Long, role: String?) =
         configurationStore.putString("groupNetRole$groupId", role ?: "")
+
+    // explicit assignment targets, "p:<profileId>" or "g:<groupId>"; empty = not assigned.
+    // a profile target takes precedence over the legacy group-level keys above.
+    fun netTarget(role: String): String? =
+        configurationStore.getString("netTarget$role")
+
+    fun putNetTarget(role: String, target: String?) =
+        configurationStore.putString("netTarget$role", target ?: "")
+
+    fun qsTileTarget(slot: Int): String? =
+        configurationStore.getString("qsTileTarget$slot")
+
+    fun putQsTileTarget(slot: Int, target: String?) =
+        configurationStore.putString("qsTileTarget$slot", target ?: "")
     var alwaysShowAddress by configurationStore.boolean(Key.ALWAYS_SHOW_ADDRESS)
     var showGroupName by configurationStore.boolean(Key.SHOW_GROUP_NAME)
 

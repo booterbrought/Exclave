@@ -28,6 +28,8 @@ import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.SagerNet
 import io.nekohasekai.sagernet.aidl.ISagerNetService
 import io.nekohasekai.sagernet.database.DataStore
+import io.nekohasekai.sagernet.database.ProxyEntity
+import io.nekohasekai.sagernet.database.ProxyGroup
 import io.nekohasekai.sagernet.database.SagerDatabase
 import io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher
 import io.nekohasekai.sagernet.ktx.runOnMainDispatcher
@@ -56,9 +58,10 @@ fun tileIconRes(slot: Int): Int = when (slot) {
 }
 
 /**
- * One Quick Settings tile per assigned subscription group. Tap toggles the VPN using the
- * group's last used profile (or its best-ping profile); if another group is running, tap
- * switches to this group. Assign groups in the app: group menu -> Assign Quick Settings tile.
+ * One Quick Settings tile per assignment. The target is either a subscription group (tap
+ * toggles the VPN using the group's last used profile, or its best-ping profile) or an
+ * exact profile. Assign in the app: group menu -> Assign Quick Settings tile -> pick
+ * "This group" or "Specific profile".
  */
 @RequiresApi(24)
 abstract class GroupTileService : BaseTileService(), SagerConnection.Callback {
@@ -99,6 +102,7 @@ abstract class GroupTileService : BaseTileService(), SagerConnection.Callback {
         // tile was removed from the panel: drop the binding
         runOnDefaultDispatcher {
             DataStore.putQsTileGroup(slot, null)
+            DataStore.putQsTileTarget(slot, null)
         }
         super.onTileRemoved()
     }
@@ -113,25 +117,67 @@ abstract class GroupTileService : BaseTileService(), SagerConnection.Callback {
         }
     }
 
+    private sealed interface TileTarget {
+        val label: String
+        val connectProfileId: Long
+        fun isActive(running: ProxyEntity?): Boolean
+    }
+
+    private class ProfileTarget(val profile: ProxyEntity) : TileTarget {
+        override val label = profile.displayName()
+        override val connectProfileId = profile.id
+        override fun isActive(running: ProxyEntity?) = running?.id == profile.id
+    }
+
+    private class GroupTarget(val group: ProxyGroup, val profile: ProxyEntity?) : TileTarget {
+        override val label = group.displayName()
+        override val connectProfileId = profile?.id ?: -1L
+        override fun isActive(running: ProxyEntity?) = running?.groupId == group.id
+    }
+
+    /**
+     * What this tile is bound to: an explicit profile, an explicit group, or the legacy
+     * group binding. Null when unbound or the bound profile/group no longer exists.
+     */
+    private fun resolveTarget(): TileTarget? {
+        val explicit = DataStore.qsTileTarget(slot)
+        if (!explicit.isNullOrEmpty()) {
+            return when {
+                explicit.startsWith("p:") -> SagerDatabase.proxyDao.getById(
+                    explicit.removePrefix("p:").toLongOrNull() ?: return null
+                )?.let { ProfileTarget(it) }
+                explicit.startsWith("g:") -> SagerDatabase.groupDao.getById(
+                    explicit.removePrefix("g:").toLongOrNull() ?: return null
+                )?.let { GroupTarget(it, GroupSwitcher.pickProfile(it.id)) }
+                else -> null
+            }
+        }
+        // legacy group binding
+        return DataStore.qsTileGroup(slot)?.let { gid ->
+            SagerDatabase.groupDao.getById(gid)?.let { GroupTarget(it, GroupSwitcher.pickProfile(gid)) }
+        }
+    }
+
     private fun updateTile(serviceState: BaseService.State) {
         runOnDefaultDispatcher {
-            val groupId = DataStore.qsTileGroup(slot)
-            val group = groupId?.let { SagerDatabase.groupDao.getById(it) }
+            val target = resolveTarget()
             val running =
                 if (serviceState.canStop) SagerDatabase.proxyDao.getById(DataStore.startedProfile) else null
-            var subtitle: String?
             val tileState: Int
+            var subtitle: String?
             when (serviceState) {
                 BaseService.State.Connecting -> {
                     tileState = Tile.STATE_ACTIVE
                     subtitle = null
                 }
-                BaseService.State.Connected -> if (running != null && groupId != null && running.groupId == groupId) {
+                BaseService.State.Connected -> if (running != null && target?.isActive(running) == true) {
                     tileState = Tile.STATE_ACTIVE
                     subtitle = running.displayName()
                 } else {
                     tileState = Tile.STATE_INACTIVE
-                    subtitle = GroupSwitcher.pickProfile(groupId)?.displayName()
+                    subtitle = target?.connectProfileId
+                        ?.takeIf { it > 0 }
+                        ?.let { SagerDatabase.proxyDao.getById(it)?.displayName() }
                 }
                 BaseService.State.Stopping -> {
                     tileState = Tile.STATE_UNAVAILABLE
@@ -139,12 +185,14 @@ abstract class GroupTileService : BaseTileService(), SagerConnection.Callback {
                 }
                 else -> {
                     tileState = Tile.STATE_INACTIVE
-                    subtitle = GroupSwitcher.pickProfile(groupId)?.displayName()
+                    subtitle = target?.connectProfileId
+                        ?.takeIf { it > 0 }
+                        ?.let { SagerDatabase.proxyDao.getById(it)?.displayName() }
                 }
             }
             runOnMainDispatcher {
                 qsTile?.apply {
-                    label = group?.name ?: getString(R.string.app_name)
+                    label = target?.label ?: getString(R.string.app_name)
                     this.subtitle = subtitle
                     icon = iconIdle
                     state = tileState
@@ -155,7 +203,7 @@ abstract class GroupTileService : BaseTileService(), SagerConnection.Callback {
     }
 
     private suspend fun toggle() {
-        val groupId = DataStore.qsTileGroup(slot) ?: return
+        val target = resolveTarget() ?: return
         val service = connection.service
         if (service == null) {
             // binder not ready yet; retry once connected
@@ -166,13 +214,20 @@ abstract class GroupTileService : BaseTileService(), SagerConnection.Callback {
         when {
             state.canStop -> {
                 val running = SagerDatabase.proxyDao.getById(DataStore.startedProfile)
-                if (running != null && running.groupId == groupId) {
+                if (running != null && target.isActive(running)) {
                     SagerNet.stopService()
                 } else {
-                    GroupSwitcher.switchTo(groupId, state)
+                    switchTo(target, state)
                 }
             }
-            state == BaseService.State.Stopped -> GroupSwitcher.switchTo(groupId, state)
+            state == BaseService.State.Stopped -> switchTo(target, state)
+        }
+    }
+
+    private suspend fun switchTo(target: TileTarget, state: BaseService.State) {
+        when (target) {
+            is ProfileTarget -> GroupSwitcher.switchToProfile(target.profile.id, state)
+            is GroupTarget -> GroupSwitcher.switchTo(target.group.id, state)
         }
     }
 

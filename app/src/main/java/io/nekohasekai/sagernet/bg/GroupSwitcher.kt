@@ -47,8 +47,16 @@ object GroupSwitcher {
      */
     suspend fun switchTo(groupId: Long, state: BaseService.State) {
         val profile = pickProfile(groupId) ?: return
+        switchToProfile(profile.id, state)
+    }
+
+    /**
+     * Connect the exact profile [profileId].
+     */
+    suspend fun switchToProfile(profileId: Long, state: BaseService.State) {
+        val profile = SagerDatabase.proxyDao.getById(profileId) ?: return
         DataStore.selectedProxy = profile.id
-        DataStore.putGroupLastProfile(groupId, profile.id)
+        DataStore.putGroupLastProfile(profile.groupId, profile.id)
         if (state.canStop) {
             SagerNet.reloadService()
         } else {

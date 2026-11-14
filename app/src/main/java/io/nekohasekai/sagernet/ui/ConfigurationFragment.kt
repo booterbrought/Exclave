@@ -230,6 +230,9 @@ class ConfigurationFragment @JvmOverloads constructor(
             if (adapter.groupList.size > position) {
                 tab.text = adapter.groupList[position].displayName()
             }
+            // keep group tabs reachable with the D-pad on TV
+            tab.view.isFocusable = true
+            tab.view.isClickable = true
             tab.view.setOnLongClickListener { // clear toast
                 true
             }
@@ -700,80 +703,107 @@ class ConfigurationFragment @JvmOverloads constructor(
             R.id.action_assign_tile -> {
                 runOnDefaultDispatcher {
                     val group = DataStore.currentGroup()
-                    val slots = (1..QS_TILE_SLOTS).associateWith { slot -> DataStore.qsTileGroup(slot) }
-                    val names = slots.mapValues { (_, gid) ->
-                        gid?.let { SagerDatabase.groupDao.getById(it)?.name }
+                    val parts = ArrayList<String>()
+                    for (slot in 1..QS_TILE_SLOTS) {
+                        parts += getString(R.string.qs_tile_slot_short, slot) + ": " + describeTileTarget(slot)
                     }
-                    val boundSlot = slots.entries.firstOrNull { it.value == group.id }?.key
+                    val items = arrayOf(
+                        getString(R.string.assign_target_group),
+                        getString(R.string.assign_target_profile),
+                        getString(R.string.assign_target_clear),
+                    )
                     onMainDispatcher {
-                        val items = (1..QS_TILE_SLOTS).map { slot ->
-                            getString(
-                                R.string.qs_tile_slot_status, slot,
-                                names[slot] ?: getString(R.string.qs_tile_free)
-                            )
-                        }.toTypedArray()
-                        val builder = MaterialAlertDialogBuilder(requireContext())
+                        MaterialAlertDialogBuilder(requireContext())
                             .setTitle(R.string.qs_tile_assign)
+                            .setMessage(parts.joinToString("\n"))
                             .setItems(items) { _, which ->
-                                val slot = which + 1
-                                runOnDefaultDispatcher {
-                                    DataStore.putQsTileGroup(slot, group.id)
-                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                        requestAddTile(slot, group.name ?: getString(R.string.app_name))
+                                when (which) {
+                                    0 -> showTileSlotPicker { slot ->
+                                        runOnDefaultDispatcher {
+                                            DataStore.putQsTileGroup(slot, group.id)
+                                            DataStore.putQsTileTarget(slot, "")
+                                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                                onMainDispatcher {
+                                                    requestAddTile(slot, group.name ?: getString(R.string.app_name))
+                                                }
+                                            }
+                                        }
+                                    }
+                                    1 -> runOnDefaultDispatcher {
+                                        val profiles = SagerDatabase.proxyDao.getByGroup(group.id)
+                                        if (profiles.isEmpty()) {
+                                            onMainDispatcher { snackbar(R.string.no_proxies_found_in_subscription).show() }
+                                            return@runOnDefaultDispatcher
+                                        }
+                                        showProfilePicker(profiles) { profile ->
+                                            showTileSlotPicker { slot ->
+                                                runOnDefaultDispatcher {
+                                                    DataStore.putQsTileTarget(slot, "p:${profile.id}")
+                                                    DataStore.putQsTileGroup(slot, null)
+                                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                                        onMainDispatcher {
+                                                            requestAddTile(slot, profile.displayName())
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    else -> showTileSlotPicker { slot ->
+                                        runOnDefaultDispatcher {
+                                            DataStore.putQsTileGroup(slot, null)
+                                            DataStore.putQsTileTarget(slot, "")
+                                        }
                                     }
                                 }
                             }
-                            .setPositiveButton(android.R.string.cancel, null)
-                        if (boundSlot != null) {
-                            builder.setNegativeButton(R.string.qs_tile_unassign) { _, _ ->
-                                runOnDefaultDispatcher {
-                                    DataStore.putQsTileGroup(boundSlot, null)
-                                }
-                            }
-                        }
-                        builder.show()
+                            .show()
                     }
                 }
             }
             R.id.action_assign_network -> {
                 runOnDefaultDispatcher {
                     val group = DataStore.currentGroup()
-                    val current = DataStore.groupNetRole(group.id)
+                    val summary = getString(R.string.network_wifi) + ": " + describeRole(NetworkSwitcher.ROLE_WIFI) +
+                            "\n" + getString(R.string.network_mobile) + ": " + describeRole(NetworkSwitcher.ROLE_MOBILE)
+                    val items = arrayOf(
+                        getString(R.string.assign_target_group),
+                        getString(R.string.assign_target_profile),
+                        getString(R.string.assign_target_clear),
+                    )
                     onMainDispatcher {
-                        val options = arrayOf(
-                            getString(R.string.network_wifi),
-                            getString(R.string.network_mobile),
-                            getString(R.string.network_none),
-                        )
-                        val checked = when (current) {
-                            NetworkSwitcher.ROLE_WIFI -> 0
-                            NetworkSwitcher.ROLE_MOBILE -> 1
-                            else -> 2
-                        }
                         MaterialAlertDialogBuilder(requireContext())
-                            .setTitle(
-                                getString(
-                                    R.string.assign_network_title,
-                                    group.name ?: getString(R.string.app_name)
-                                )
-                            )
-                            .setSingleChoiceItems(options, checked) { dialog, which ->
-                                dialog.dismiss()
-                                runOnDefaultDispatcher {
-                                    val role = when (which) {
-                                        0 -> NetworkSwitcher.ROLE_WIFI
-                                        1 -> NetworkSwitcher.ROLE_MOBILE
-                                        else -> ""
+                            .setTitle(R.string.assign_network_menu)
+                            .setMessage(summary)
+                            .setItems(items) { _, which ->
+                                when (which) {
+                                    0 -> showNetworkRolePicker(includeNone = true) { role ->
+                                        applyNetworkRole(role, targetGroup = group, targetProfile = null)
                                     }
-                                    if (role.isNotEmpty()) {
-                                        // keep a single group per network role
-                                        SagerDatabase.groupDao.allGroups().forEach { g ->
-                                            if (g.id != group.id && DataStore.groupNetRole(g.id) == role) {
-                                                DataStore.putGroupNetRole(g.id, "")
+                                    1 -> runOnDefaultDispatcher {
+                                        val profiles = SagerDatabase.proxyDao.getByGroup(group.id)
+                                        if (profiles.isEmpty()) {
+                                            onMainDispatcher { snackbar(R.string.no_proxies_found_in_subscription).show() }
+                                            return@runOnDefaultDispatcher
+                                        }
+                                        showProfilePicker(profiles) { profile ->
+                                            showNetworkRolePicker(includeNone = true) { role ->
+                                                applyNetworkRole(role, targetGroup = null, targetProfile = profile)
                                             }
                                         }
                                     }
-                                    DataStore.putGroupNetRole(group.id, role)
+                                    else -> showNetworkRolePicker(includeNone = false) { role ->
+                                        runOnDefaultDispatcher {
+                                            if (role.isNotEmpty()) {
+                                                DataStore.putNetTarget(role, "")
+                                                SagerDatabase.groupDao.allGroups().forEach { g ->
+                                                    if (DataStore.groupNetRole(g.id) == role) {
+                                                        DataStore.putGroupNetRole(g.id, "")
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             }
                             .show()
@@ -1046,6 +1076,119 @@ class ConfigurationFragment @JvmOverloads constructor(
                 GroupManager.postReload(DataStore.currentGroupId())
             }
         }
+    }
+
+    private fun applyNetworkRole(role: String, targetGroup: ProxyGroup?, targetProfile: ProxyEntity?) {
+        runOnDefaultDispatcher {
+            val roles = listOf(NetworkSwitcher.ROLE_WIFI, NetworkSwitcher.ROLE_MOBILE)
+            if (targetProfile != null) {
+                if (role.isNotEmpty()) {
+                    // the profile target wins: drop group-level role for this network
+                    SagerDatabase.groupDao.allGroups().forEach { g ->
+                        if (DataStore.groupNetRole(g.id) == role) DataStore.putGroupNetRole(g.id, "")
+                    }
+                    DataStore.putNetTarget(role, "p:${targetProfile.id}")
+                } else {
+                    // clear this profile's explicit targets; the group fallback resumes
+                    for (r in roles) {
+                        if (DataStore.netTarget(r) == "p:${targetProfile.id}") DataStore.putNetTarget(r, "")
+                    }
+                }
+            } else if (targetGroup != null) {
+                if (role.isNotEmpty()) {
+                    SagerDatabase.groupDao.allGroups().forEach { g ->
+                        if (g.id != targetGroup.id && DataStore.groupNetRole(g.id) == role) {
+                            DataStore.putGroupNetRole(g.id, "")
+                        }
+                    }
+                    DataStore.putNetTarget(role, "")
+                    DataStore.putGroupNetRole(targetGroup.id, role)
+                } else {
+                    for (r in roles) {
+                        if (DataStore.netTarget(r) == "g:${targetGroup.id}") DataStore.putNetTarget(r, "")
+                    }
+                    DataStore.putGroupNetRole(targetGroup.id, "")
+                }
+            }
+        }
+    }
+
+    private fun showNetworkRolePicker(includeNone: Boolean, onPicked: (String) -> Unit) {
+        runOnDefaultDispatcher {
+            onMainDispatcher {
+            val options = buildList {
+                add(getString(R.string.network_wifi))
+                add(getString(R.string.network_mobile))
+                if (includeNone) add(getString(R.string.network_none))
+            }.toTypedArray()
+            MaterialAlertDialogBuilder(requireContext())
+                .setTitle(R.string.assign_network_role)
+                .setItems(options) { dialog, which ->
+                    dialog.dismiss()
+                    onPicked(
+                        when (which) {
+                            0 -> NetworkSwitcher.ROLE_WIFI
+                            1 -> NetworkSwitcher.ROLE_MOBILE
+                            else -> ""
+                        }
+                    )
+                }
+                .show()
+            }
+        }
+    }
+
+    private fun showProfilePicker(profiles: List<ProxyEntity>, onPicked: (ProxyEntity) -> Unit) {
+        runOnDefaultDispatcher {
+            onMainDispatcher {
+            val names = profiles.map { it.displayName() }.toTypedArray()
+            MaterialAlertDialogBuilder(requireContext())
+                .setTitle(R.string.assign_pick_profile)
+                .setItems(names) { _, which -> onPicked(profiles[which]) }
+                .setPositiveButton(android.R.string.cancel, null)
+                .show()
+            }
+        }
+    }
+
+    private fun showTileSlotPicker(onPicked: (Int) -> Unit) {
+        runOnDefaultDispatcher {
+            val items = ArrayList<String>()
+            for (slot in 1..QS_TILE_SLOTS) {
+                items += getString(R.string.qs_tile_slot_short, slot) + ": " + describeTileTarget(slot)
+            }
+            onMainDispatcher {
+                MaterialAlertDialogBuilder(requireContext())
+                    .setTitle(R.string.qs_tile_assign)
+                    .setItems(items.toTypedArray()) { _, which -> onPicked(which + 1) }
+                    .setPositiveButton(android.R.string.cancel, null)
+                    .show()
+            }
+        }
+    }
+
+    private suspend fun describeTileTarget(slot: Int): String {
+        DataStore.qsTileTarget(slot)?.takeIf { it.isNotEmpty() }?.let { return describeTarget(it) }
+        DataStore.qsTileGroup(slot)?.let { gid ->
+            return SagerDatabase.groupDao.getById(gid)?.displayName() ?: "\u2014"
+        }
+        return getString(R.string.qs_tile_free)
+    }
+
+    private suspend fun describeTarget(target: String): String = when {
+        target.startsWith("p:") -> SagerDatabase.proxyDao.getById(
+            target.removePrefix("p:").toLongOrNull() ?: -1L
+        )?.displayName() ?: "\u2014"
+        target.startsWith("g:") -> SagerDatabase.groupDao.getById(
+            target.removePrefix("g:").toLongOrNull() ?: -1L
+        )?.displayName() ?: "\u2014"
+        else -> "\u2014"
+    }
+
+    private suspend fun describeRole(role: String): String {
+        DataStore.netTarget(role)?.takeIf { it.isNotEmpty() }?.let { return describeTarget(it) }
+        return SagerDatabase.groupDao.allGroups()
+            .firstOrNull { DataStore.groupNetRole(it.id) == role }?.displayName() ?: "\u2014"
     }
 
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
