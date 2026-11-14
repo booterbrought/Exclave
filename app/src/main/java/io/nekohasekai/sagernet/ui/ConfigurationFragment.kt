@@ -703,59 +703,14 @@ class ConfigurationFragment @JvmOverloads constructor(
             R.id.action_assign_tile -> {
                 runOnDefaultDispatcher {
                     val group = DataStore.currentGroup()
-                    val parts = ArrayList<String>()
-                    for (slot in 1..QS_TILE_SLOTS) {
-                        parts += getString(R.string.qs_tile_slot_short, slot) + ": " + describeTileTarget(slot)
-                    }
-                    val items = arrayOf(
-                        getString(R.string.assign_target_group),
-                        getString(R.string.assign_target_profile),
-                        getString(R.string.assign_target_clear),
-                    )
+                    val slotItems = (1..QS_TILE_SLOTS).map { slot ->
+                        getString(R.string.qs_tile_slot_short, slot) + ": " + describeTileTarget(slot)
+                    }.toTypedArray()
                     onMainDispatcher {
                         MaterialAlertDialogBuilder(requireContext())
                             .setTitle(R.string.qs_tile_assign)
-                            .setMessage(parts.joinToString("\n"))
-                            .setItems(items) { _, which ->
-                                when (which) {
-                                    0 -> showTileSlotPicker { slot ->
-                                        runOnDefaultDispatcher {
-                                            DataStore.putQsTileGroup(slot, group.id)
-                                            DataStore.putQsTileTarget(slot, "")
-                                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                                onMainDispatcher {
-                                                    requestAddTile(slot, group.name ?: getString(R.string.app_name))
-                                                }
-                                            }
-                                        }
-                                    }
-                                    1 -> runOnDefaultDispatcher {
-                                        val profiles = SagerDatabase.proxyDao.getByGroup(group.id)
-                                        if (profiles.isEmpty()) {
-                                            onMainDispatcher { snackbar(R.string.no_proxies_found_in_subscription).show() }
-                                            return@runOnDefaultDispatcher
-                                        }
-                                        showProfilePicker(profiles) { profile ->
-                                            showTileSlotPicker { slot ->
-                                                runOnDefaultDispatcher {
-                                                    DataStore.putQsTileTarget(slot, "p:${profile.id}")
-                                                    DataStore.putQsTileGroup(slot, null)
-                                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                                        onMainDispatcher {
-                                                            requestAddTile(slot, profile.displayName())
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                    else -> showTileSlotPicker { slot ->
-                                        runOnDefaultDispatcher {
-                                            DataStore.putQsTileGroup(slot, null)
-                                            DataStore.putQsTileTarget(slot, "")
-                                        }
-                                    }
-                                }
+                            .setItems(slotItems) { _, which ->
+                                showTileTargetChooser(which + 1, group)
                             }
                             .show()
                     }
@@ -764,47 +719,18 @@ class ConfigurationFragment @JvmOverloads constructor(
             R.id.action_assign_network -> {
                 runOnDefaultDispatcher {
                     val group = DataStore.currentGroup()
-                    val summary = getString(R.string.network_wifi) + ": " + describeRole(NetworkSwitcher.ROLE_WIFI) +
-                            "\n" + getString(R.string.network_mobile) + ": " + describeRole(NetworkSwitcher.ROLE_MOBILE)
                     val items = arrayOf(
-                        getString(R.string.assign_target_group),
-                        getString(R.string.assign_target_profile),
-                        getString(R.string.assign_target_clear),
+                        getString(R.string.network_wifi) + ": " + describeRole(NetworkSwitcher.ROLE_WIFI),
+                        getString(R.string.network_mobile) + ": " + describeRole(NetworkSwitcher.ROLE_MOBILE),
                     )
                     onMainDispatcher {
                         MaterialAlertDialogBuilder(requireContext())
                             .setTitle(R.string.assign_network_menu)
-                            .setMessage(summary)
                             .setItems(items) { _, which ->
-                                when (which) {
-                                    0 -> showNetworkRolePicker(includeNone = true) { role ->
-                                        applyNetworkRole(role, targetGroup = group, targetProfile = null)
-                                    }
-                                    1 -> runOnDefaultDispatcher {
-                                        val profiles = SagerDatabase.proxyDao.getByGroup(group.id)
-                                        if (profiles.isEmpty()) {
-                                            onMainDispatcher { snackbar(R.string.no_proxies_found_in_subscription).show() }
-                                            return@runOnDefaultDispatcher
-                                        }
-                                        showProfilePicker(profiles) { profile ->
-                                            showNetworkRolePicker(includeNone = true) { role ->
-                                                applyNetworkRole(role, targetGroup = null, targetProfile = profile)
-                                            }
-                                        }
-                                    }
-                                    else -> showNetworkRolePicker(includeNone = false) { role ->
-                                        runOnDefaultDispatcher {
-                                            if (role.isNotEmpty()) {
-                                                DataStore.putNetTarget(role, "")
-                                                SagerDatabase.groupDao.allGroups().forEach { g ->
-                                                    if (DataStore.groupNetRole(g.id) == role) {
-                                                        DataStore.putGroupNetRole(g.id, "")
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
+                                showNetworkTargetChooser(
+                                    if (which == 0) NetworkSwitcher.ROLE_WIFI else NetworkSwitcher.ROLE_MOBILE,
+                                    group,
+                                )
                             }
                             .show()
                     }
@@ -1113,30 +1039,6 @@ class ConfigurationFragment @JvmOverloads constructor(
         }
     }
 
-    private fun showNetworkRolePicker(includeNone: Boolean, onPicked: (String) -> Unit) {
-        runOnDefaultDispatcher {
-            onMainDispatcher {
-            val options = buildList {
-                add(getString(R.string.network_wifi))
-                add(getString(R.string.network_mobile))
-                if (includeNone) add(getString(R.string.network_none))
-            }.toTypedArray()
-            MaterialAlertDialogBuilder(requireContext())
-                .setTitle(R.string.assign_network_role)
-                .setItems(options) { dialog, which ->
-                    dialog.dismiss()
-                    onPicked(
-                        when (which) {
-                            0 -> NetworkSwitcher.ROLE_WIFI
-                            1 -> NetworkSwitcher.ROLE_MOBILE
-                            else -> ""
-                        }
-                    )
-                }
-                .show()
-            }
-        }
-    }
 
     private fun showProfilePicker(profiles: List<ProxyEntity>, onPicked: (ProxyEntity) -> Unit) {
         runOnDefaultDispatcher {
@@ -1189,6 +1091,91 @@ class ConfigurationFragment @JvmOverloads constructor(
         DataStore.netTarget(role)?.takeIf { it.isNotEmpty() }?.let { return describeTarget(it) }
         return SagerDatabase.groupDao.allGroups()
             .firstOrNull { DataStore.groupNetRole(it.id) == role }?.displayName() ?: "\u2014"
+    }
+
+    private fun showTileTargetChooser(slot: Int, group: ProxyGroup) {
+        runOnDefaultDispatcher {
+            onMainDispatcher {
+            val items = arrayOf(
+                getString(R.string.assign_target_group),
+                getString(R.string.assign_target_profile),
+                getString(R.string.assign_target_clear),
+            )
+            MaterialAlertDialogBuilder(requireContext())
+                .setTitle(getString(R.string.qs_tile_slot_short, slot))
+                .setItems(items) { _, which ->
+                    runOnDefaultDispatcher {
+                        when (which) {
+                            0 -> {
+                                DataStore.putQsTileGroup(slot, group.id)
+                                DataStore.putQsTileTarget(slot, "")
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                    onMainDispatcher {
+                                        requestAddTile(slot, group.name ?: getString(R.string.app_name))
+                                    }
+                                }
+                            }
+                            1 -> {
+                                val profiles = SagerDatabase.proxyDao.getByGroup(group.id)
+                                if (profiles.isEmpty()) {
+                                    onMainDispatcher { snackbar(R.string.no_proxies_found_in_subscription).show() }
+                                } else {
+                                    onMainDispatcher {
+                                        showProfilePicker(profiles) { profile ->
+                                            runOnDefaultDispatcher {
+                                                DataStore.putQsTileTarget(slot, "p:${profile.id}")
+                                                DataStore.putQsTileGroup(slot, null)
+                                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                                    onMainDispatcher { requestAddTile(slot, profile.displayName()) }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            else -> {
+                                DataStore.putQsTileGroup(slot, null)
+                                DataStore.putQsTileTarget(slot, "")
+                            }
+                        }
+                    }
+                }
+                .show()
+            }
+        }
+    }
+
+    private fun showNetworkTargetChooser(role: String, group: ProxyGroup) {
+        runOnDefaultDispatcher {
+            onMainDispatcher {
+            val items = arrayOf(
+                getString(R.string.assign_target_group),
+                getString(R.string.assign_target_profile),
+                getString(R.string.network_none),
+            )
+            MaterialAlertDialogBuilder(requireContext())
+                .setTitle(R.string.assign_network_role)
+                .setItems(items) { _, which ->
+                    when (which) {
+                        0 -> applyNetworkRole(role, targetGroup = group, targetProfile = null)
+                        1 -> runOnDefaultDispatcher {
+                            val profiles = SagerDatabase.proxyDao.getByGroup(group.id)
+                            if (profiles.isEmpty()) {
+                                onMainDispatcher { snackbar(R.string.no_proxies_found_in_subscription).show() }
+                            } else {
+                                onMainDispatcher {
+                                    showProfilePicker(profiles) { profile ->
+                                        applyNetworkRole(role, targetGroup = null, targetProfile = profile)
+                                    }
+                                }
+                            }
+                        }
+                        else -> applyNetworkRole("", targetGroup = group, targetProfile = null)
+                    }
+                }
+                .show()
+            }
+        }
     }
 
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)

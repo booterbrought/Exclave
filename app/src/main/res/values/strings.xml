@@ -295,7 +295,7 @@
     <string name="assign_network_menu">Assign to Wi-Fi / mobile data</string>
     <string name="assign_target_group">This group (last used profile)</string>
     <string name="assign_target_profile">Specific profile…</string>
-    <string name="assign_target_clear">Not assigned (clear)</string>
+    <string name="assign_target_clear">Clear this tile / assignment</string>
     <string name="assign_pick_profile">Pick a profile</string>
     <string name="assign_network_role">Assign to network…</string>
     <string name="qs_tile_slot_short">Tile %d</string>
