@@ -23,6 +23,13 @@
             android:title="@string/settings" />
     </group>
 
+    <group android:checkableBehavior="none">
+        <item
+            android:id="@+id/nav_add_profile"
+            android:icon="@drawable/ic_action_note_add"
+            android:title="@string/add_profile" />
+    </group>
+
     <group
         android:id="@+id/misc"
         android:checkableBehavior="single">

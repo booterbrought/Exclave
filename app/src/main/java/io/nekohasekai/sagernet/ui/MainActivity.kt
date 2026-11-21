@@ -353,6 +353,20 @@ class MainActivity : ThemedActivity(),
 
     fun displayFragmentWithId(@IdRes id: Int): Boolean {
         when (id) {
+            R.id.nav_add_profile -> {
+                binding.drawerLayout.closeDrawers()
+                val fragment = supportFragmentManager.findFragmentById(R.id.fragment_holder)
+                if (fragment is ConfigurationFragment && fragment.isAdded) {
+                    fragment.showAddProfileMenu()
+                } else {
+                    displayFragment(ConfigurationFragment())
+                    binding.fragmentHolder.post {
+                        (supportFragmentManager.findFragmentById(R.id.fragment_holder)
+                                as? ConfigurationFragment)?.showAddProfileMenu()
+                    }
+                }
+                return true
+            }
             R.id.nav_configuration -> {
                 displayFragment(ConfigurationFragment())
                 connection.bandwidthTimeout = connection.bandwidthTimeout

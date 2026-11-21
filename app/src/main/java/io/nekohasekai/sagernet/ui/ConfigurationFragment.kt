@@ -1004,6 +1004,23 @@ class ConfigurationFragment @JvmOverloads constructor(
         }
     }
 
+    /**
+     * TV/drawer path to the add-profile menu: opens the same menu as the toolbar "+"
+     * as a popup (D-pad navigable).
+     */
+    fun showAddProfileMenu() {
+        if (select) return
+        runOnDefaultDispatcher {
+            onMainDispatcher {
+                PopupMenu(requireContext(), toolbar).apply {
+                    menuInflater.inflate(R.menu.add_profile_menu, menu)
+                    setOnMenuItemClickListener(this@ConfigurationFragment)
+                    show()
+                }
+            }
+        }
+    }
+
     private fun applyNetworkRole(role: String, targetGroup: ProxyGroup?, targetProfile: ProxyEntity?) {
         runOnDefaultDispatcher {
             val roles = listOf(NetworkSwitcher.ROLE_WIFI, NetworkSwitcher.ROLE_MOBILE)
